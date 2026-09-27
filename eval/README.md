@@ -8,7 +8,7 @@
 
 ```bash
 # 线上跑一轮（在项目文件夹里）
-SHIYIN_INVITE=邀请码 node eval/run.mjs https://music.aitown.me v1.0
+SHIYIN_INVITE=邀请码 node eval/run.mjs https://你的编曲台域名 v1.0
 # 出报告（两个 runs 文件可以互相对比）；0.x 基线见 baseline-0.x.md
 node eval/report.mjs eval/runs/2026-09-27-v1.0.json
 ```

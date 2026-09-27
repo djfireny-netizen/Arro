@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # 拾音编曲台 · 阿里云 ECS（Alibaba Cloud Linux 3）一键部署
 # 用法：代码放到 /srv/shiyin 之后，在服务器上执行：
-#   sudo bash /srv/shiyin/deploy/setup-alinux.sh aitown.me
+#   sudo bash /srv/shiyin/deploy/setup-alinux.sh music.example.com
+#   （中国内地服务器要挂备案号的话：ICP_NUMBER='X ICP备XXXXXXXX号-1' sudo -E bash ...）
 # 可以重复执行：更新代码后再跑一遍即可。
 set -e
-DOMAIN=${1:-aitown.me}
+DOMAIN=${1:?用法：setup-alinux.sh 你的域名}
 APP=/srv/shiyin
 cd "$APP"
 
@@ -36,7 +37,7 @@ add ALLOWED_ORIGIN "https://$DOMAIN,https://www.$DOMAIN,http://$DOMAIN,http://ww
 add RATE_LIMIT_PER_IP 10
 add RATE_LIMIT_PER_DAY 300
 add MAX_CONCURRENT 4
-add ICP_NUMBER "浙ICP备2026029742号-1"
+[ -n "$ICP_NUMBER" ] && add ICP_NUMBER "$ICP_NUMBER"
 if ! grep -qE '^(DEEPSEEK_API_KEY|DASHSCOPE_API_KEY|ARK_API_KEY)=.+' .env; then
   echo "!! .env 里还没有填大模型的 API Key。先 nano $APP/.env 填上 PROVIDER 和 Key，再重新运行本脚本。"
 fi

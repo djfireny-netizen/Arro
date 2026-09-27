@@ -1,9 +1,10 @@
 #!/bin/bash
 # 一次性：在服务器上建一个"收货仓库"，以后 git push 过去就自动上线
-# 用法：bash ~/Desktop/Music/拾音编曲台/deploy/git部署-初始化.sh   （服务器密码输一次）
+# 用法：bash deploy/git部署-初始化.sh（在项目文件夹里运行；需要登录服务器时输一次密码）
 set -e
-SRV=root@8.160.179.19
-LOCAL_ENV="$HOME/Desktop/Music/拾音编曲台/.env"
+. "$(dirname "$0")/_load-config.sh"
+SRV=$SERVER
+LOCAL_ENV="$PROJECT_DIR/.env"
 # 评测口令：本机没有就生成一个，写进本机 .env；同一个值写进服务器 .env（不在屏幕上显示）
 T=$(grep '^EVAL_TOKEN=' "$LOCAL_ENV" 2>/dev/null | cut -d= -f2)
 if [ -z "$T" ]; then T=$(openssl rand -hex 16); printf '\nEVAL_TOKEN=%s\n' "$T" >> "$LOCAL_ENV"; fi
@@ -43,6 +44,6 @@ HOOK
 chmod +x hooks/post-receive
 echo "✓ 服务器收货仓库已就绪：/srv/shiyin.git"
 REMOTE
-cd "$HOME/Desktop/Music/拾音编曲台"
+cd "$PROJECT_DIR"
 git remote get-url server >/dev/null 2>&1 || git remote add server $SRV:/srv/shiyin.git
 echo "✓ 本机已添加远端 server。以后上线：bash deploy/上线.sh"

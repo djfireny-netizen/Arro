@@ -2413,8 +2413,8 @@ function setMode(m,from){
 
 /* ============ AI 生成内容标识（《人工智能生成合成内容标识办法》/ GB 45438-2025）============ */
 // 隐式标识：文件元数据里写 AIGC 字段；显式标识：音频末尾加"短长 短短"提示音（摩斯码 AI），文本文件里写明
-const AIGC_PRODUCER='拾音编曲台 music.aitown.me';
-const AIGC_TEXT='本作品由人工智能生成（拾音编曲台 music.aitown.me）';
+const AIGC_PRODUCER='拾音编曲台 '+location.host;
+const AIGC_TEXT=`本作品由人工智能生成（${AIGC_PRODUCER}）`;
 function aigcId(){return 'SY'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,8).toUpperCase();}
 function aigcJSON(id){return JSON.stringify({AIGC:{Label:'1',ContentProducer:AIGC_PRODUCER,ProduceID:id,ReservedCode1:'',ContentPropagator:'',PropagateID:'',ReservedCode2:''}});}
 // 在音频末尾接一段提示音：停 0.8 秒后，1 kHz 短长 短短，音量约 -20 dBFS

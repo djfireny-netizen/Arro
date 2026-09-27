@@ -1,6 +1,6 @@
 // 跑一轮评测：固定 20 个意象，依次调用编曲台生成，把结果存到 eval/runs/
 // 用法（在你的 Mac 终端，项目文件夹里）：
-//   SHIYIN_INVITE=你的邀请码 node eval/run.mjs https://music.aitown.me 标签   （评测口令自动从 .env 读取）
+//   SHIYIN_INVITE=你的邀请码 node eval/run.mjs https://你的编曲台域名 标签   （评测口令自动从 .env 读取）
 //   本地调试：node eval/run.mjs http://localhost:5178 本地
 // 然后：node eval/report.mjs eval/runs/<文件>.json [eval/runs/基线.json]
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
