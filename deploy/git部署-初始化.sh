@@ -3,8 +3,14 @@
 # 用法：bash ~/Desktop/Music/拾音编曲台/deploy/git部署-初始化.sh   （服务器密码输一次）
 set -e
 SRV=root@8.160.179.19
-ssh -o StrictHostKeyChecking=accept-new $SRV 'bash -s' <<'REMOTE'
+LOCAL_ENV="$HOME/Desktop/Music/拾音编曲台/.env"
+# 评测口令：本机没有就生成一个，写进本机 .env；同一个值写进服务器 .env（不在屏幕上显示）
+T=$(grep '^EVAL_TOKEN=' "$LOCAL_ENV" 2>/dev/null | cut -d= -f2)
+if [ -z "$T" ]; then T=$(openssl rand -hex 16); printf '\nEVAL_TOKEN=%s\n' "$T" >> "$LOCAL_ENV"; fi
+ssh -o StrictHostKeyChecking=accept-new $SRV "EVAL_TOKEN=$T bash -s" <<'REMOTE'
 set -e
+E=/srv/shiyin/.env
+if ! grep -q '^EVAL_TOKEN=' $E; then cp -a $E /root/shiyin.env.bak-$(date +%Y%m%d%H%M%S); echo "EVAL_TOKEN=$EVAL_TOKEN" >> $E; echo "✓ 评测口令已写入服务器 .env（重启后生效）"; fi
 command -v git >/dev/null || dnf install -y git
 mkdir -p /srv/shiyin.git && cd /srv/shiyin.git
 [ -f HEAD ] || git init -q --bare -b main

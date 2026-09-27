@@ -1,10 +1,12 @@
 // 跑一轮评测：固定 20 个意象，依次调用编曲台生成，把结果存到 eval/runs/
 // 用法（在你的 Mac 终端，项目文件夹里）：
-//   SHIYIN_INVITE=你的邀请码 EVAL_TOKEN=服务器.env里的EVAL_TOKEN node eval/run.mjs https://music.aitown.me 标签
+//   SHIYIN_INVITE=你的邀请码 node eval/run.mjs https://music.aitown.me 标签   （评测口令自动从 .env 读取）
 //   本地调试：node eval/run.mjs http://localhost:5178 本地
 // 然后：node eval/report.mjs eval/runs/<文件>.json [eval/runs/基线.json]
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
+// EVAL_TOKEN 没在命令行给出时，从本机 .env 读（deploy/git部署-初始化.sh 会写进去）
+try { const m = readFileSync(new URL('../.env', import.meta.url), 'utf8').match(/^EVAL_TOKEN=(.+)$/m); if (m && !process.env.EVAL_TOKEN) process.env.EVAL_TOKEN = m[1].trim(); } catch {}
 const base = (process.argv[2] || 'http://localhost:5178').replace(/\/$/, '');
 const tag = process.argv[3] || 'run';
 const only = Number(process.env.EVAL_N || 0);
