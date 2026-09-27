@@ -22,7 +22,7 @@ function summarize(runs) {
       ['Sections with bar counts other than 4/8', rate(x => x.m.structure.barsNot4or8.length > 0), 'pct'],
       ['Review duration claim mismatch (raw detector)', rate(x => x.m.consistency.reviewClaimOff > 0), 'pct'],
       ['Missing review change notes', rate(x => x.m.consistency.reviewMissing), 'pct'],
-      ['Unparseable notation (inaudible)', rate(x => x.m.consistency.badTokens.length > 0), 'pct'],
+      ['Unsupported notation (skipped or simplified)', rate(x => x.m.consistency.badTokens.length > 0), 'pct'],
       ['Harmony groups with lengths other than 4/8', rate(x => x.m.consistency.harmOddLen.length > 0), 'pct'],
       ['Structure: distinct forms / successful samples', forms / (ms.length || 1), 'pct'],
       ['Number of styles used', styles, 'n0'],
@@ -48,7 +48,7 @@ const show = (v, t) => !isFinite(v) ? '—' : t === 'pct' ? Math.round(v * 100) 
 const [, , fNew, fOld] = process.argv;
 if (!fNew) { console.log('Usage: node eval/report.mjs new.json [baseline.json]'); process.exit(1); }
 const A = summarize(load(fNew).runs), B = fOld ? summarize(load(fOld).runs) : null;
-let md = `# Arro Evaluation Report\n\nSamples: ${fNew}（${A.ok}/${A.n} succeeded）${B ? `; Baseline: ${fOld}（${B.ok}/${B.n}）` : ''}\n\n`;
+let md = `# Arro Evaluation Report\n\nSamples: ${fNew}(${A.ok}/${A.n} succeeded)${B ? `; Baseline: ${fOld}(${B.ok}/${B.n})` : ''}\n\n`;
 md += `| Metric | ${B ? 'Baseline | ' : ''}Current |\n|---|${B ? '---|' : ''}---|\n`;
 A.rows.forEach((r, i) => { md += `| ${r[0]} | ${B ? show(B.rows[i][1], B.rows[i][2]) + ' | ' : ''}${show(r[1], r[2])} |\n`; });
 md += `\n## Per-song results\n\n| Scene | Title | Style | Form | Duration | Distinct chords | Chorus notes/range | Diagnostics |\n|---|---|---|---|---|---|---|---|\n`;
