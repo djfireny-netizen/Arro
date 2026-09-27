@@ -1,0 +1,16 @@
+# 密钥：永远不进仓库
+.env
+.env.*
+!.env.example
+千问Key*
+*.key
+*.pem
+
+# 本地交接笔记（含服务器与邀请码信息）
+交接*.md
+
+# 杂项
+node_modules/
+*.log
+.DS_Store
+eval/runs/
