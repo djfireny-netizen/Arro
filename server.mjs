@@ -40,11 +40,14 @@ function clientIP(req) {
   }
   return req.socket.remoteAddress || '?';
 }
-function quota(ip) {
+// 评测用：请求头带 X-Eval-Token 且与 .env 的 EVAL_TOKEN 一致时，不受"每个 IP 每天几次"的限制（全站每日上限照样生效）
+const EVAL_TOKEN = process.env.EVAL_TOKEN || '';
+const isEval = req => EVAL_TOKEN.length >= 16 && String(req.headers['x-eval-token'] || '') === EVAL_TOKEN;
+function quota(ip, evalRun) {
   const d = new Date().toISOString().slice(0, 10);
   if (d !== day) { day = d; ipCount = new Map(); dayCount = 0; }
   if (PER_DAY && dayCount >= PER_DAY) return '今天全站的大模型额度用完了，已改用本地引擎。明天再来试试。';
-  if (PER_IP && (ipCount.get(ip) || 0) >= PER_IP) return `你今天已经用了 ${PER_IP} 次大模型生成，已改用本地引擎（本地引擎不限次数）。`;
+  if (PER_IP && !evalRun && (ipCount.get(ip) || 0) >= PER_IP) return `你今天已经用了 ${PER_IP} 次大模型生成，已改用本地引擎（本地引擎不限次数）。`;
   if (running >= MAX_CONC) return '现在用的人有点多，请过一分钟再试。';
   return null;
 }
@@ -160,7 +163,7 @@ const server = http.createServer(async (req, res) => {
       if (!KEY) return send(res, 400, { error: `还没有设置 ${P.keyEnv}` });
       if (!P.model) return send(res, 400, { error: '还没有设置模型名称' });
       if (!originOK(req)) return send(res, 403, { error: '来源不被允许' });
-      const ip = clientIP(req), why = quota(ip);
+      const ip = clientIP(req), why = quota(ip, isEval(req));
       if (why) return send(res, 429, { error: why });
       let raw = '';
       for await (const chunk of req) { raw += chunk; if (raw.length > 4000) break; }
