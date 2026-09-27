@@ -1,120 +1,127 @@
-# Arro · 拾音编曲台
+# Arro
 
-**Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the whole song (form, harmony, grooves, melodies, production moves), then reviews and revises its own draft. You tweak it with a few sliders and export multitrack MIDI and audio into your DAW. The UI is in Chinese; the code runs anywhere with Node.js 18+.
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-描述一个画面，由大模型担任"制作人"写出整首编曲（曲式、和声、律动、旋律、制作手法），再以挑剔的 A&R 身份复审修改一遍。编曲人用推子微调后，导出分轨 MIDI 和音频，拖进宿主继续做。
+**Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the song's form, harmony, grooves, melodies, and production moves, then reviews and revises its draft. Shape the result with the arrangement controls and export MIDI or audio to continue working in your DAW.
 
-线上体验：https://music.aitown.me （邀请制）
+The application currently has a Chinese interface and runs on Node.js 18 or later. The [hosted version](https://music.aitown.me) requires an invitation code.
 
-## 能做什么
+## What you can make
 
-- **整首编曲**：前奏、主歌、预副歌、副歌、记忆点、桥段、尾奏由大模型按这首歌来决定，每段写明"为什么这样处理"。
-- **每一层都能单独改**：鼓组、贝斯、和弦、旋律，以及琶音、铺底、打击乐、转场音效，可以"换一个"、锁定、静音。
-- **导出**：MIDI（整首、分轨、4 小节循环；带调号、和弦名轨、段落标记，摇摆也写进去）、和弦谱、整首 WAV、分轨 WAV、给 Suno 的改编包。
+- **Full-song arrangements.** The model chooses sections and their musical treatment, with an explanation of each section's role.
+- **Layer-by-layer adjustments.** Regenerate, lock, or mute drums, bass, chords, melody, arpeggios, pads, percussion, and effects. These immediate adjustments use the local arrangement engine.
+- **DAW exports.** Export full-song and per-track MIDI, four-bar MIDI loops, chord charts, full-song WAV, WAV stems, and a Suno adaptation guide. MIDI includes key signatures, chord names, section markers, and swing timing.
+- **Sound shaping.** Adjust key, brightness, energy, melodic complexity, harmonic richness, swing, and space. Section energy can be adjusted individually.
+- **Local history.** Undo and redo changes, star versions, and return to previous arrangements stored in the current browser.
 
-**风格**：22 种，分四组，可以在输入框旁边直接选，也可以让它根据描述自动识别。
-- 流行：流行抒情、City Pop、民谣、舞曲流行、R&B
-- 电子：合成器浪潮、House、Future Bass、Drum & Bass、8-bit 游戏、氛围、Lo-fi
-- 节奏：Trap、放克、雷鬼、非洲节拍、波萨诺瓦
-- 器乐：爵士、蓝调、摇滚、国风、电影配乐
+### Styles and instruments
 
-**声音**：有 30 种真实乐器采样（钢琴、吉他、古筝、笛子、萨克斯、铜管、合唱、原声鼓等），电子风格用合成器。每种风格只加载自己用到的乐器。总线上有均衡、压缩和限幅。采样来源和授权见 `samples/CREDITS.md`。
+Choose a style or let the model infer one from your scene:
 
-**导出**：MIDI（整首、整首分轨、4 小节循环分轨；带调号、和弦名轨、段落标记，摇摆也写进去）、和弦谱（txt）、整首 WAV、分轨 WAV。
+| Group | Styles |
+| --- | --- |
+| Pop | Ballad, City Pop, folk, dance pop, R&B |
+| Electronic | Synthwave, house, future bass, drum & bass, chiptune, ambient, lo-fi |
+| Rhythm | Trap, funk, reggae, afrobeats, bossa nova |
+| Instrumental | Jazz, blues, rock, Chinese-inspired music, cinematic |
 
-**调整方向**：调（换调不换编曲）、明暗（从弗里几亚色彩的暗到利底亚色彩的亮，中间是小调、多利亚、借用和弦、大调）、能量（同一套编曲变薄或变厚，每段还能单独调）、旋律复杂度、和声丰富度（三和弦 → 七和弦、低音走线 → 九和弦、无根音排列）、律动（直 ↔ 摇摆）、呼吸感。
+The sound engine combines 30 sampled instruments with Web Audio synthesis. Samples are loaded as needed for each style. The master bus includes EQ, compression, and limiting. See [sample credits and licenses](./samples/CREDITS.md).
 
-**编曲手法**：进副歌前全体停一拍、前奏滤波扫频、桥段半速鼓、最后一遍副歌加对位旋律、副歌后的"记忆点"（Post-chorus）、每遍副歌逐步加满、避开最常见的口水和弦进行（挂四、ii7 代替 IV 等）、声像左右展开。
+## How generation works
 
-**三个方向**：一次用本地引擎写三版（首选、换风格或换速度、反差明暗），点卡片切换试听。
+1. **Draft:** the model writes a complete JSON arrangement: sections, harmony, grooves, melodies, instrumentation, and production decisions.
+2. **Review:** a second model call reviews and revises that arrangement. Program measurements provide facts such as duration, bar counts, and unsupported notation.
+3. **Playback and export:** the browser interprets the plan, applies its playback constraints and fallbacks, and renders the arrangement.
 
-**其他**：最后一遍副歌自动升一个全音（可以关掉）；撤销 / 重做（⌘Z、⇧⌘Z）；每次生成或换一轨都会记一个版本，可以打星收藏、随时回到某一版（保存在这台电脑的浏览器里）。
+Musical structure and creative decisions belong to the model. Measurements supplied to the reviewer describe technical facts. The requested duration is 2:40–3:30; actual adherence is measured by the evaluation suite. The browser currently attempts to extend short plans by adding sections.
 
-## 大模型当制作人（默认）
+The interface shows the producer's concept and revision notes. Two-pass generation typically takes one or two minutes, depending on the model and service. Set `ARRANGE_PASSES=1` for a single draft, or `ARRANGE_MODE=loop` for the older four-bar workflow. Local controls and alternative arrangements respond without an API call.
 
-接上大模型后点"生成"，大模型会为这首歌写一份完整的编曲方案：结构和每段长度、每段的和声、几套不同的律动（鼓、贝斯、和弦节奏）、主歌 / 预副歌 / 副歌 / 桥段各自的旋律、每段谁出场、用哪些制作手法（过门、全停、半速、叠八度、三度和声、对位旋律、滤波扫频、升调等），以及每一段"为什么这样处理"。然后再调用一次，让它以挑剔制作人的身份审初稿、改掉平庸和套路的地方。网页负责照着方案演奏、检查冲突，缺的部分用本地引擎补。整首时长按速度控制在约 2:40–3:30。
+## Run locally
 
-生成完在"展开成一首歌"上方能看到"制作人的构思"和"第二轮改了什么"，点每个段落能看到这一段的处理想法。
-
-两轮大约 1–2 分钟。想更快可以在 `.env` 里设 `ARRANGE_PASSES=1`（只写初稿），或 `ARRANGE_MODE=loop`（回到只写 4 小节的旧方式）。"换一个"、"三个方向"和各个滑杆仍然用本地引擎，秒出、不花钱。
-
-## 两种用法
-
-**只想玩一下**：直接双击 `index.html` 用浏览器打开，用的是本地规则引擎，不联网、不花钱。这样打开时浏览器不允许读取采样文件，会自动换成合成音色；想听真实乐器，用下面的 `node server.mjs` 打开。
-
-**接入千问**：
-
-1. 安装 Node.js 18 或更高版本（https://nodejs.org）
-2. 把 `.env.example` 复制一份，改名为 `.env`，填上 `DASHSCOPE_API_KEY`（阿里云百炼控制台里创建）
-3. 在这个文件夹里打开终端，运行：
-
-   ```
-   node server.mjs
-   ```
-
-4. 浏览器打开 http://localhost:5178 ，右上角显示"千问 · qwen-plus"就说明接好了
-
-不想花钱先试流程，可以在 `.env` 里写 `PROVIDER=mock`，会返回一段固定的演示编曲。
-
-## 换成别的模型
-
-改 `.env` 里的 `PROVIDER`，重启服务即可：
-
-| PROVIDER | 需要填 | 默认模型 |
-|---|---|---|
-| qwen | DASHSCOPE_API_KEY | qwen-plus（可改 QWEN_MODEL） |
-| deepseek | DEEPSEEK_API_KEY | deepseek-chat |
-| doubao | ARK_API_KEY、DOUBAO_MODEL | 需自己填 |
-
-## 分工
-
-- **大模型**：只负责"弹什么"。它按 `ai.mjs` 里的提示词输出一份 JSON（和弦级数、鼓点字符串、贝斯节奏、旋律音符）。网页右下角"大模型接入"里显示的就是这份数据。
-- **网页**：校验并修正大模型的输出（拍数越界、音符重叠、不在调内），再用浏览器实时合成声音。
-- **"换一个"**：永远用本地引擎，秒出、不花调用费。
-
-API Key 只存在你电脑上的 `.env` 里，由 `server.mjs` 代为调用，不会出现在浏览器里。
-
-## 公开到网上
-
-见 `DEPLOY.md`：用自己的云服务器 + 域名部署，带每日次数限制和来源检查；以后用 `git push` 上线，失败自动回滚。
-
-## 文件
-
-- `index.html`：整个网页（界面、编曲引擎、合成器、MIDI 导出）
-- `server.mjs`：本地服务（网页、接口）
-- `ai.mjs`：大模型供应商、提示词和编曲逻辑。改完不用重启服务，下一次请求自动生效
-- `samples/`：乐器采样（约 8 MB，按风格按需加载）和授权说明
-- `.env.example`：配置模板
-- `DEPLOY.md`、`deploy/`：部署到云服务器的步骤、上线脚本、Nginx 和 systemd 配置
-- `eval/`：评测（固定 20 个意象，分轴测量结构、和声、旋律、一致性）
-- `test/`：回归测试（mock 模型 + 真浏览器，不花大模型额度）
-- `site/`：官网静态页
-
-## 评测和测试
+Install Node.js 18 or later, then clone the repository:
 
 ```bash
-node test/regress.mjs                                              # 回归测试，需要 Playwright
-SHIYIN_INVITE=邀请码 node eval/run.mjs https://你的编曲台域名 v1.0     # 批量生成 20 首
-node eval/report.mjs eval/runs/<日期>-v1.0.json                      # 出报告
+git clone https://github.com/djfireny-netizen/Arro.git
+cd Arro
+cp .env.example .env
 ```
 
-评测只测量事实（时长、曲式、和弦种类、旋律音域、写法能否解析等），不合成一个"好听分"；最终以试听为准。交给大模型复审的"程序测量"也只包含事实和技术错误，结构和手法由它自己决定。详见 `eval/README.md`。
+Edit `.env` locally and select a provider. For Qwen, configure `DASHSCOPE_API_KEY`. Keep credentials in `.env`; it is excluded from Git.
 
-## AI 生成内容标识
+```bash
+node server.mjs
+```
 
-按《人工智能生成合成内容标识办法》和 GB 45438-2025：
-- 页面上有"AI 生成"标识；
-- 导出的 WAV 在文件信息（LIST/INFO）里写入 AIGC 元数据，末尾有一段"短长 短短"的提示音（摩斯码 AI）；
-- 导出的 MIDI 首轨写入文字说明和 AIGC 元数据；压缩包附标识说明。
+Open [localhost:5178](http://localhost:5178). To try the complete workflow with a fixed demo arrangement, set `PROVIDER=mock` in `.env`.
 
-二次开发和再次发布时请保留这些标识。
+You can also open `index.html` directly to try the local arrangement engine. Browser restrictions on local sample loading may cause it to use synthesized sounds. Running the local server enables sample loading.
 
-## 许可
+### Model providers
 
-- **代码**：[GNU AGPL-3.0](LICENSE)。可以自由使用、修改、再发布；如果把修改后的版本部署成网站对外提供服务，需要向使用者公开对应的源代码。
-- **乐器采样**（`samples/`）：沿用各自的原始授权（CC BY 3.0、CC BY-SA 4.0 等），见 `samples/CREDITS.md`。用这些采样做出来的音乐可以自由使用。
-- **官网**（`site/`）的文字和视觉属于 aitown.me，二次开发请换成你自己的内容。
+Set `PROVIDER` in `.env` and restart the server:
 
-## 参考
+| Provider | Required credential or setting | Default model |
+| --- | --- | --- |
+| `qwen` | `DASHSCOPE_API_KEY` | `qwen-plus`; override with `QWEN_MODEL` |
+| `deepseek` | `DEEPSEEK_API_KEY` | `deepseek-chat`; override with `DEEPSEEK_MODEL` |
+| `doubao` | `ARK_API_KEY`, `DOUBAO_MODEL` | Configure a model or endpoint ID |
+| `mock` | None | Fixed demo arrangement |
 
-评测和"生成 → 测量 → 修正"的思路参考了 [Libretto](https://github.com/Xyc-arch/Libretto)、[MusPy](https://github.com/salu133445/muspy)、[mgeval](https://github.com/RichardYang40148/mgeval)。
+API credentials remain on the server. They are not sent to the browser. Generation prompts currently remain in Chinese; their language is evaluated independently from the documentation language.
+
+## Tests and evaluation
+
+The browser regression suite uses a mock model and does not consume model credits. Install Playwright in your development environment and its Chromium browser, then run:
+
+```bash
+node test/regress.mjs "$PWD"
+```
+
+Passing the repository path explicitly supports directories whose names contain non-ASCII characters. If Playwright is installed outside the project, set `PLAYWRIGHT_MJS` to its absolute `index.mjs` path.
+
+The evaluation suite runs the same 20 scenes for each version. In Bash, enter the invitation code without displaying it or putting its value in shell history:
+
+```bash
+read -r -s -p 'Invitation code: ' SHIYIN_INVITE
+printf '\n'
+export SHIYIN_INVITE
+node eval/run.mjs https://your-app.example.com version-label
+unset SHIYIN_INVITE
+node eval/report.mjs eval/runs/YYYY-MM-DD-version-label.json
+```
+
+The runner reads `EVAL_TOKEN` from the local `.env` when needed. It bypasses the per-IP daily quota, while the site-wide quota still applies. Results are written to `eval/runs/`, which is excluded from Git. Use a unique label for each run because the same date and label reuse the same output filename.
+
+Measurements cover duration, structure, harmony, melody, grooves, and notation compatibility. They do not produce a single musical quality score; listening remains necessary. See [evaluation notes](./eval/README.md) and the [0.x baseline](./eval/baseline-0.x.md), currently in Chinese.
+
+## Deployment and contribution
+
+See [deployment instructions](./DEPLOY.md) for Linux, Nginx, HTTPS, invitation codes, quotas, and Git push deployment with automatic rollback. See [contribution guidelines](./CONTRIBUTING.md) for the development workflow.
+
+| Path | Purpose |
+| --- | --- |
+| `index.html` | Interface, arrangement engine, synthesis, playback, and export |
+| `server.mjs` | HTTP service, authentication, quotas, and asynchronous generation jobs |
+| `ai.mjs` | Model providers, prompts, draft generation, and review |
+| `samples/` | Instrument samples and attribution |
+| `deploy/` | Deployment scripts, Nginx configuration, and systemd service |
+| `eval/` | Fixed scenes, measurements, evaluation runner, and reports |
+| `test/` | Browser regression suite |
+| `site/` | Public website |
+
+## AI-generated content labels
+
+The interface identifies AI-generated arrangements. Exported WAV files contain AIGC metadata in their `LIST/INFO` chunks and an audible short-long / short-short marker at the end, spelling “AI” in Morse code. MIDI files include a text notice and AIGC metadata; export archives include a labeling notice.
+
+These features were implemented for the project's AI-generated content labeling requirements, including GB 45438-2025. Preserve the labels when extending or redistributing the application.
+
+## Licensing
+
+- **Code:** [GNU AGPL-3.0](./LICENSE). See the license for distribution, modification, and network source availability requirements.
+- **Instrument samples:** retain their individual licenses, including CC BY 3.0 and CC BY-SA 4.0. See [credits](./samples/CREDITS.md) for attribution and terms.
+- **Website content:** the text and visual design in `site/` belong to aitown.me. Replace this content with your own when reusing the project for another website.
+
+## References
+
+The evaluation and generate–measure–revise workflow draws on ideas from [Libretto](https://github.com/Xyc-arch/Libretto), [MusPy](https://github.com/salu133445/muspy), and [mgeval](https://github.com/RichardYang40148/mgeval).
