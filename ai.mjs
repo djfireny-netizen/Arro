@@ -248,6 +248,7 @@ function measureText(plan) {
   const warn = flags(m).filter(f => /^(时长|段落小节数|有 \d+ 处写法|和声组不是|引用了不存在|未知手法)/.test(f));
   return `【程序测量（准确，以此为准）】
 bpm ${bpm}，每小节 ${barSec.toFixed(2)} 秒；共 ${m.structure.sections} 段、${m.structure.playedBars} 小节，总时长 ${fmt(m.structure.playedSec)}。
+按这个 bpm，2 分 40 秒到 3 分 30 秒对应 ${Math.ceil(160 / barSec)} 到 ${Math.floor(210 / barSec)} 小节${m.structure.playedBars < Math.ceil(160 / barSec) ? `，现在还差至少 ${Math.ceil(160 / barSec) - m.structure.playedBars} 小节` : m.structure.playedBars > Math.floor(210 / barSec) ? `，现在多了 ${m.structure.playedBars - Math.floor(210 / barSec)} 小节` : '，现在在范围内'}（改 bpm 的话按每小节 240 ÷ bpm 秒重新算）。
 段落：${secs}
 和声：${harm}；全曲共 ${m.harmony.uniqueChords} 种和弦。
 旋律：${mel}。${warn.length ? `\n需要注意：${warn.join('；')}。` : ''}`;
