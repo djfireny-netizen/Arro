@@ -251,6 +251,8 @@ button{cursor:pointer}
 .harm{display:grid;gap:0;margin-top:4px}
 .harm>h3,.progcap{margin:0 0 8px;font-size:13px;font-weight:600}
 .progcap{margin:0}
+.pc.pc-more{opacity:.62}
+.brand .aigc{font-style:normal;font-size:11px;line-height:1;padding:3px 6px;margin-left:8px;border:1px solid var(--line);border-radius:3px;color:var(--ink-2);letter-spacing:.04em;white-space:nowrap}
 .hrow{display:grid;grid-template-columns:5.2em minmax(0,1fr);gap:4px 12px;border-top:1px solid var(--line);padding:10px 0}
 .hrow>b{font-size:13px;padding-top:4px}
 .hchips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -305,7 +307,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
     <div class="brand">
       <div class="caps" aria-hidden="true"><i style="background:var(--c-drums)"></i><i style="background:var(--c-bass)"></i><i style="background:var(--c-chords)"></i><i style="background:var(--c-melody)"></i></div>
       <b>拾音</b>
-      <span>编曲灵感台 · 原型 0.1</span>
+      <span>编曲台 · 1.0</span><em class="aigc" title="页面上的编曲和导出的文件由人工智能生成">AI 生成</em>
     </div>
     <div class="top-r">
       <button class="ib" id="undoBtn" type="button" title="撤销（⌘Z / Ctrl+Z）" aria-label="撤销" disabled>↶</button>
@@ -439,7 +441,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
   <section class="lower">
     <div class="card">
       <h2>这段音乐在做什么</h2>
-      <h3 class="progcap">副歌的 4 个和弦 · 也就是循环播放的这一段</h3>
+      <h3 class="progcap" id="progCap">副歌的 4 个和弦 · 也就是循环播放的这一段</h3>
       <div class="prog" id="prog"></div>
       <p class="explain" id="explain"></p>
       <div class="harm" id="harm"></div>
@@ -455,7 +457,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
   </section>
 
   <footer>
-    <span>声音由浏览器实时合成。导出的 MIDI 可以直接拖进 FL Studio、Logic、Ableton 继续做。</span>
+    <span>编曲内容由人工智能生成，导出的文件带有 AI 生成标识。声音由浏览器实时合成，导出的 MIDI 可以直接拖进 FL Studio、Logic、Ableton 继续做。</span>
     <span>按 <span class="kbd">空格</span> 播放或停止<a id="creditsLink" href="/credits" target="_blank" rel="noopener" hidden style="margin-left:14px;color:inherit">采样来源与授权</a><a id="icpLink" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" hidden style="margin-left:14px;color:inherit"></a><span id="policeNo" hidden style="margin-left:14px"></span></span>
   </footer>
 </div>
@@ -1184,6 +1186,21 @@ function explainProg(a){
   return parts.join('');
 }
 
+// 大模型整首方案：讲解副歌的全部和弦（可能是 8 个），只陈述事实，不用本地引擎的模板话术
+const progSig=pr=>JSON.stringify((pr||[]).map(p=>[p.deg,p.chr||null,!!p.sev]));
+function chorusFull(a){return a.progFull&&a.progFullSig===progSig(a.prog)?a.progFull:null;}
+function explainPlan(a){
+  const full=chorusFull(a)||a.prog, b={...a,prog:full};
+  const inf=full.map((_,i)=>chordInfo(b,i));
+  const line=inf.map(c=>c.roman).join('–').replace(/^((?:[^–]+–){3}[^–]+)–/,'$1 ｜ ');
+  const out=[`副歌 ${full.length} 个和弦：${line}（${inf.map(c=>c.name).join(' ')}）。`];
+  const ext=[...new Set(full.map((p,i)=>p.chr&&p.rn&&(p.fl||/[♯♭]/.test(p.rn))?inf[i].roman:null).filter(Boolean))];
+  if(ext.length) out.push(`其中 ${ext.join('、')} 用到了调外的音。`);
+  if(full.length>4) out.push('上面循环播放的是前 4 小节，整首歌曲里会完整演奏。');
+  return out.join('');
+}
+function explainFor(a){return a.fromSong?(a.concept?a.concept+' ':'')+explainPlan(a):explainProg(a);}
+
 /* ============ 大模型结果 → 编曲（带校验） ============ */
 function cleanLane(s){s=String(s||'').toLowerCase().replace(/[^xo.]/g,'.');return (s+'................').slice(0,16);}
 function fromPlan(p,prev,locked){
@@ -1896,10 +1913,11 @@ function parseChordTok(tok,mode){
 function parseNotes(str,maxStep){
   const out=[];
   for(const t of String(str||'').trim().split(/[\s,]+/)){
-    const m=t.match(/^(\d+):(\d+):(-?\d+)([#b♯♭]?)$/); if(!m) continue;
-    const step=+m[1], len=Math.max(1,Math.min(16,+m[2])), deg=Math.max(-8,Math.min(16,+m[3]-1));
+    // 升降号写在级数前后都认（"4#" 和 "#4" 一样），免得大模型写了、网页却听不到
+    const m=t.match(/^(\d+):(\d+):([#b♯♭]?)(-?\d+)([#b♯♭]?)$/); if(!m||(m[3]&&m[5])) continue;
+    const step=+m[1], len=Math.max(1,Math.min(16,+m[2])), deg=Math.max(-8,Math.min(16,+m[4]-1)), ac=m[3]||m[5];
     if(step>=maxStep) continue;
-    out.push({step,len,deg,...(m[4]?{acc:/[#♯]/.test(m[4])?1:-1}:{})});
+    out.push({step,len,deg,...(ac?{acc:/[#♯]/.test(ac)?1:-1}:{})});
   }
   out.sort((x,y)=>x.step-y.step);
   const ns=out.filter((n,i)=>i===0||n.step!==out[i-1].step);
@@ -1948,15 +1966,17 @@ function fromSongPlan(p,prev,locked){
     grooves[k]={lanes,bass,chords:ch};
   }
   // 段落
+  const barNotes=[];
   const secs=(Array.isArray(p.sections)?p.sections:[]).slice(0,24).map(x=>{
     const type=SEC_TYPES.includes(x&&x.type)?x.type:'verse';
     const bars=+x.bars===8?8:4;
+    if(x&&x.bars!=null&&+x.bars!==bars) barNotes.push(`${SECTIONS[type].name}写的是 ${x.bars} 小节，目前按 ${bars} 小节演奏`);
     const play=(Array.isArray(x.play)?x.play:['drums','bass','chords','melody']).filter(L=>LAYERS.includes(L));
     return {id:++secId,type,bars,plan:{harmony:planProg[x.harmony]?x.harmony:(planProg[type]?type:Object.keys(planProg)[0]),groove:grooves[x.groove]?x.groove:(Object.keys(grooves)[0]||null),
       play,melody:String(x.melody||'none'),energy:Math.max(0,Math.min(1,+x.energy||.6)),moves:(Array.isArray(x.moves)?x.moves:[]).filter(m=>MOVE_NAME[m]),idea:String(x.idea||'').slice(0,120)}};
   });
   // 时长兜底：大模型写得太短（不到 2 分 30 秒）时，按流行歌的习惯补段落
-  const extNotes=[];
+  const extNotes=barNotes.length?[`网页核对：${barNotes.join('；')}。`]:[];
   {
     const bpm=clampInt(p.bpm,60,180,100), dur=()=>secs.reduce((n,x)=>n+x.bars,0)*240/bpm, d0=dur();
     const cp=x=>({id:++secId,type:x.type,bars:x.bars,plan:{...x.plan,moves:x.plan.moves.filter(m=>!['key_up','drop_first_bar','filter_sweep'].includes(m))}});
@@ -1998,7 +2018,8 @@ function fromSongPlan(p,prev,locked){
   a.title=String(p.title||'').slice(0,20); a.concept=String(p.concept||'').slice(0,200);
   a.review=(Array.isArray(p.review)?p.review:[]).map(x=>String(x).slice(0,120)).slice(0,6).concat(extNotes);
   a.passes=p.passes||1;
-  a.explain=(a.concept?a.concept+' ':'')+explainProg(a);
+  a.fromSong=true; a.progFull=cp.length>4?cp.slice(0,8):null; a.progFullSig=progSig(a.prog);
+  a.explain=explainFor(a);
   // 用到这些东西的引擎兜底（大模型没写的旋律、和声，由引擎补上）
   const base=songExtra(a);
   const fx={...base,planProg,planMel,grooves,fromPlan:true};
@@ -2390,6 +2411,26 @@ function setMode(m,from){
   if(was||from!==undefined) start(from||0);
 }
 
+/* ============ AI 生成内容标识（《人工智能生成合成内容标识办法》/ GB 45438-2025）============ */
+// 隐式标识：文件元数据里写 AIGC 字段；显式标识：音频末尾加"短长 短短"提示音（摩斯码 AI），文本文件里写明
+const AIGC_PRODUCER='拾音编曲台 music.aitown.me';
+const AIGC_TEXT='本作品由人工智能生成（拾音编曲台 music.aitown.me）';
+function aigcId(){return 'SY'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,8).toUpperCase();}
+function aigcJSON(id){return JSON.stringify({AIGC:{Label:'1',ContentProducer:AIGC_PRODUCER,ProduceID:id,ReservedCode1:'',ContentPropagator:'',PropagateID:'',ReservedCode2:''}});}
+// 在音频末尾接一段提示音：停 0.8 秒后，1 kHz 短长 短短，音量约 -20 dBFS
+function withAigcTone(buf){
+  const sr=buf.sampleRate, u=0.09*sr|0, gap=0.8*sr|0;
+  const pat=[[1,1],[3,3],[1,1],[1,0]];   // [响的单位数, 之后停的单位数]：· −   · ·
+  const toneLen=pat.reduce((n,[on,off])=>n+(on+off)*u,0), tail=0.5*sr|0;
+  const out=new AudioBuffer({numberOfChannels:buf.numberOfChannels,length:buf.length+gap+toneLen+tail,sampleRate:sr});
+  for(let c=0;c<buf.numberOfChannels;c++){
+    const d=out.getChannelData(c); d.set(buf.getChannelData(c));
+    let o=buf.length+gap;
+    for(const [on,off] of pat){const n=on*u,f=Math.min(n,.006*sr|0);for(let i=0;i<n;i++){const env=Math.min(1,i/f,(n-i)/f);d[o+i]=.1*env*Math.sin(2*Math.PI*1000*i/sr);}o+=(on+off)*u;}
+  }
+  return out;
+}
+
 /* ============ MIDI + ZIP ============ */
 const utf8=s=>Array.from(new TextEncoder().encode(s));
 const vlq=n=>{const b=[n&0x7f];while(n>>=7)b.unshift((n&0x7f)|0x80);return b;};
@@ -2401,12 +2442,13 @@ function mtrk(name,evs){
   out.push(0,0xFF,0x2F,0);
   return [0x4D,0x54,0x72,0x6B,...u32(out.length),...out];
 }
-function midiFile(a,which,D){
+function midiFile(a,which,D,aid){
   D=D||derive(a); const T=120; // 480 PPQ, 十六分音符 = 120 tick
   const us=Math.round(60000000/a.bpm);
   const SF=[0,-5,2,-3,4,-1,6,1,-4,3,-2,5], sf=SF[mod(a.root+(a.mode==='minor'?3:0),12)];
   const meta=[{t:0,o:0,d:[0xFF,0x51,0x03,(us>>16)&255,(us>>8)&255,us&255]},{t:0,o:0,d:[0xFF,0x58,0x04,4,2,24,8]},{t:0,o:0,d:[0xFF,0x59,0x02,sf&255,a.mode==='minor'?1:0]}];
   (D.markers||[]).forEach(m=>{const b=utf8(m.name);meta.push({t:m.step*T,o:0,d:[0xFF,0x06,...vlq(b.length),...b]});});
+  for(const txt of [AIGC_TEXT,aigcJSON(aid||aigcId())]){const b=utf8(txt);meta.push({t:0,o:0,d:[0xFF,0x01,...vlq(b.length),...b]});}
   const tracks=[mtrk('拾音 · '+STYLES[a.styleId].name,meta)];
   // 摇摆和 Shuffle 也写进 MIDI：反拍的音符往后挪一点，拖进 DAW 听起来和网页里一样
   const sw=t=>{const st=Math.round(t/T);return st*T===t?Math.round(swingOff(st,1)*T):0;};
@@ -2481,13 +2523,15 @@ function leadSheet(a){
   L.push('说明：斜线后面是低音音符（比如 C/E 表示 C 和弦、低音弹 E）。');
   return L.join('\n');
 }
+function aigcNote(id){return new TextEncoder().encode(`${AIGC_TEXT}\n内容编号：${id}\n\n按照《人工智能生成合成内容标识办法》，这个压缩包里的文件带有 AI 生成标识：\n- MIDI：首轨里有一条文字事件写明"人工智能生成"，并带 AIGC 元数据；\n- WAV：文件信息（LIST/INFO）里带 AIGC 元数据，音频末尾有一段"短长 短短"的提示音（摩斯码 AI）。\n再次发布时请保留这些标识。\n`);}
 function buildExport(a){
-  const base=`拾音_${NOTE_NAMES[a.root]}${a.mode==='minor'?'m':''}_${a.bpm}BPM`;
+  const base=`拾音_${NOTE_NAMES[a.root]}${a.mode==='minor'?'m':''}_${a.bpm}BPM`, id=aigcId();
   const D=derive(a);
-  const files=[{name:`${base}_整首歌曲_${state.S.bars}小节.mid`,data:midiFile(a,LAYERS,state.S)},{name:base+'_循环_全部.mid',data:midiFile(a,LAYERS,D)}];
-  LAYERS.filter(L=>D.roll[L].length).forEach(L=>files.push({name:`${base}_循环_${META[L].name}.mid`,data:midiFile(a,[L],D)}));
-  LAYERS.filter(L=>state.S.roll[L].length&&L!=='fx').forEach(L=>files.push({name:`${base}_整首分轨_${META[L].name}.mid`,data:midiFile(a,[L],state.S)}));
-  files.push({name:`${base}_和弦谱.txt`,data:new TextEncoder().encode(leadSheet(a))});
+  const files=[{name:`${base}_整首歌曲_${state.S.bars}小节.mid`,data:midiFile(a,LAYERS,state.S,id)},{name:base+'_循环_全部.mid',data:midiFile(a,LAYERS,D,id)}];
+  LAYERS.filter(L=>D.roll[L].length).forEach(L=>files.push({name:`${base}_循环_${META[L].name}.mid`,data:midiFile(a,[L],D,id)}));
+  LAYERS.filter(L=>state.S.roll[L].length&&L!=='fx').forEach(L=>files.push({name:`${base}_整首分轨_${META[L].name}.mid`,data:midiFile(a,[L],state.S,id)}));
+  files.push({name:`${base}_和弦谱.txt`,data:new TextEncoder().encode(leadSheet(a)+'\n\n'+AIGC_TEXT+'\n')});
+  files.push({name:'AI生成内容标识.txt',data:aigcNote(id)});
   return {name:base+'.zip',data:zip(files)};
 }
 const dlReady=(window.claude&&typeof window.claude.use==='function')?window.claude.use('downloads').catch(()=>null):Promise.resolve(null);
@@ -2543,17 +2587,23 @@ async function renderAudio(solo,onProgress,opt={}){
   }
   return off.startRendering();
 }
-function wavBytes(buf){
-  const ch=buf.numberOfChannels, n=buf.length, sr=buf.sampleRate, out=new DataView(new ArrayBuffer(44+n*ch*2));
+function wavBytes(buf,aid){
+  const ch=buf.numberOfChannels, n=buf.length, sr=buf.sampleRate;
+  // LIST/INFO：软件名 + AIGC 隐式标识（放在音频数据之后，任何播放器都能正常读）
+  const sub=(id,str)=>{const b=new TextEncoder().encode(str+'\0'),pad=b.length&1;const u=new Uint8Array(8+b.length+pad),v=new DataView(u.buffer);for(let i=0;i<4;i++)u[i]=id.charCodeAt(i);v.setUint32(4,b.length,true);u.set(b,8);return u;};
+  const items=[sub('ISFT',AIGC_PRODUCER),sub('ICMT',aigcJSON(aid||aigcId()))], il=items.reduce((s,x)=>s+x.length,0);
+  const list=new Uint8Array(12+il),lv=new DataView(list.buffer);list.set([76,73,83,84]);lv.setUint32(4,4+il,true);list.set([73,78,70,79],8);{let p=12;for(const x of items){list.set(x,p);p+=x.length;}}
+  const out=new DataView(new ArrayBuffer(44+n*ch*2+list.length));
   const w=(o,str)=>{for(let i=0;i<str.length;i++)out.setUint8(o+i,str.charCodeAt(i));};
-  w(0,'RIFF');out.setUint32(4,36+n*ch*2,true);w(8,'WAVE');w(12,'fmt ');out.setUint32(16,16,true);out.setUint16(20,1,true);
+  w(0,'RIFF');out.setUint32(4,36+n*ch*2+list.length,true);w(8,'WAVE');w(12,'fmt ');out.setUint32(16,16,true);out.setUint16(20,1,true);
   out.setUint16(22,ch,true);out.setUint32(24,sr,true);out.setUint32(28,sr*ch*2,true);out.setUint16(32,ch*2,true);out.setUint16(34,16,true);
   w(36,'data');out.setUint32(40,n*ch*2,true);
   const data=[...Array(ch)].map((_,i)=>buf.getChannelData(i));
   let peak=0; for(const d of data) for(let i=0;i<n;i++){const v=Math.abs(d[i]);if(v>peak)peak=v;}
   const g=peak>.97?.97/peak:1;   // 峰值保护，避免削波
   let o=44; for(let i=0;i<n;i++) for(let c=0;c<ch;c++){const v=Math.max(-1,Math.min(1,data[c][i]*g));out.setInt16(o,v<0?v*0x8000:v*0x7fff,true);o+=2;}
-  return new Uint8Array(out.buffer);
+  const bytes=new Uint8Array(out.buffer); bytes.set(list,o);
+  return bytes;
 }
 let rendering=false;
 /* ============ 给 Suno：让它按我们的旋律和结构来填词、演唱 ============ */
@@ -2615,7 +2665,8 @@ async function exportSuno(){
     btn.disabled=true;
     const g=await renderAudio(null,f=>{btn.textContent=`引导版 ${Math.round(f*100)}%`;},{guide:true});
     const i=await renderAudio(null,f=>{btn.textContent=`纯伴奏 ${Math.round(f*100)}%`;},{noMelody:true});
-    const files=[{name:base+'_引导版.wav',data:wavBytes(g)},{name:base+'_纯伴奏.wav',data:wavBytes(i)},{name:base+'_说明.txt',data:new TextEncoder().encode(sunoGuide())}];
+    const id=aigcId();
+    const files=[{name:base+'_引导版.wav',data:wavBytes(withAigcTone(g),id)},{name:base+'_纯伴奏.wav',data:wavBytes(withAigcTone(i),id)},{name:base+'_说明.txt',data:new TextEncoder().encode(sunoGuide()+'\n\n'+AIGC_TEXT+'\n')},{name:'AI生成内容标识.txt',data:aigcNote(id)}];
     await saveFile(base+'.zip',zip(files),'application/zip','已导出给 Suno 的改编包：引导版、纯伴奏和说明（风格描述、歌词结构、建议设置）。');
   }catch(e){toast('渲染没成功：'+String(e.message||e).slice(0,60));}
   finally{rendering=false;btn.disabled=false;btn.innerHTML=old;}
@@ -2628,14 +2679,15 @@ async function exportWav(stems){
     btn.disabled=true; btn.textContent='准备中…';
     if(!stems){
       const buf=await renderAudio(null,f=>{btn.textContent=`渲染中 ${Math.round(f*100)}%`;});
-      await saveFile(base+'_整首.wav',wavBytes(buf),'audio/wav',`已导出整首 WAV（${fmtTime(buf.duration)}）。`);
+      await saveFile(base+'_整首.wav',wavBytes(withAigcTone(buf)),'audio/wav',`已导出整首 WAV（${fmtTime(buf.duration)}，末尾带 AI 生成提示音）。`);
     } else {
-      const files=[], layers=LAYERS.filter(L=>state.S.roll[L].length&&!state.muted[L]);
+      const files=[], layers=LAYERS.filter(L=>state.S.roll[L].length&&!state.muted[L]), id=aigcId();
       for(let i=0;i<layers.length;i++){
         btn.textContent=`渲染分轨 ${i+1}/${layers.length}…`;
         const buf=await renderAudio(layers[i],f=>{btn.textContent=`分轨 ${i+1}/${layers.length} · ${Math.round(f*100)}%`;});
-        files.push({name:`${base}_${String(i+1).padStart(2,'0')}_${META[layers[i]].name}.wav`,data:wavBytes(buf)});
+        files.push({name:`${base}_${String(i+1).padStart(2,'0')}_${META[layers[i]].name}.wav`,data:wavBytes(withAigcTone(buf),id)});
       }
+      files.push({name:'AI生成内容标识.txt',data:aigcNote(id)});
       await saveFile(base+'_分轨.zip',zip(files),'application/zip',`已导出 ${files.length} 条分轨，全部从同一时间开始，拖进 DAW 就能对齐。`);
     }
   }catch(e){toast('渲染没成功：'+String(e.message||e).slice(0,60));}
@@ -2776,7 +2828,9 @@ function render(changed){
   for(const L of LAYERS) $('pat-'+L).textContent=(L==='chords'?state.D.infos.map(c=>c.name).join(' · ')+' · ':'')+a[L].name+(L==='melody'&&a.melody.score!=null?` · ${a.melody.src||'引擎'} ${a.melody.score} 分`:'');
   $('altMel').hidden=!a.melodyAlt; if(a.melodyAlt) $('altMel').textContent='⇄ 换成'+(a.melodyAlt.src||'引擎')+'那版';
   $('prog').innerHTML='';
-  state.D.infos.forEach(c=>{const d=document.createElement('div');d.className='pc';const b=document.createElement('b');b.textContent=c.roman;const s=document.createElement('span');s.textContent=c.name;d.append(b,s);$('prog').appendChild(d);});
+  const full=chorusFull(a), more=full?full.slice(4).map((_,i)=>chordInfo({...a,prog:full.slice(4)},i)):[];
+  $('progCap').textContent=full?`副歌的 ${full.length} 个和弦 · 循环播放的是前 4 个`:'副歌的 4 个和弦 · 也就是循环播放的这一段';
+  [...state.D.infos,...more].forEach((c,i)=>{const d=document.createElement('div');d.className='pc'+(i>=4?' pc-more':'');const b=document.createElement('b');b.textContent=c.roman;const s=document.createElement('span');s.textContent=c.name;d.append(b,s);$('prog').appendChild(d);});
   $('explain').textContent=a.explain;
   $('tips').innerHTML='';
   for(const L of LAYERS){
@@ -3038,7 +3092,7 @@ function reroll(L){
     a.prog=newProg(st,a.mood,a.prog.map(p=>p.deg).join(','));
     twistProg(a);
     if(Math.random()<.4) a.chords=newChordPart(st,a.chords.id);
-    a.explain=explainProg(a);
+    a.fromSong=false; a.explain=explainProg(a);
     if(!state.locked.melody){setMelody(a,bestMelody(st,a,a.melody.id));changed.push('melody');}
   }
   if(L==='melody') setMelody(a,bestMelody(st,a,a.melody.id,{exForm:a.melody.form}));
@@ -3239,13 +3293,13 @@ function syncCtl(){
   const live=(id,f)=>{$(id).oninput=e=>f(Number(e.target.value),false);$(id).onchange=e=>f(Number(e.target.value),true);};
   live('bright',(v,go)=>{$('brightV').textContent=brightWord(v); if(!go) return;
     commit(); const a=state.arr; state.ctl.bright=v; a.bright=v; const nm=modeOfBright(v);
-    if(nm!==a.mode){a.mode=nm;a.explain=explainProg(a);render(['chords']);} else render([]);
+    if(nm!==a.mode){a.mode=nm;a.explain=explainFor(a);render(['chords']);} else render([]);
     record('明暗 '+brightWord(v));});
   live('energy',(v,go)=>{$('energyV').textContent=energyWord(v); if(!go) return; commit(); state.ctl.energy=v; render([]); record('能量 '+energyWord(v));});
   live('mel',(v,go)=>{$('melV').textContent=melWord(v); if(!go) return;
     state.ctl.mel=v; if(state.locked.melody){toast('旋律锁定了：复杂度会在下次生成时生效。');return;}
     commit(); const a=state.arr; setMelody(a,bestMelody(STYLES[a.styleId],a)); render(['melody']); record('旋律 '+melWord(v));});
-  live('harm',(v,go)=>{$('harmV').textContent=harmWord(v); if(!go) return; commit(); state.ctl.harm=v; state.arr.explain=explainProg(state.arr); render(['chords']); record('和声 '+harmWord(v));});
+  live('harm',(v,go)=>{$('harmV').textContent=harmWord(v); if(!go) return; commit(); state.ctl.harm=v; state.arr.explain=explainFor(state.arr); render(['chords']); record('和声 '+harmWord(v));});
   live('swing',(v,go)=>{$('swingV').textContent=swingWord(v); if(!go) return; commit(); state.ctl.swing=v; state.arr.groove=v; syncCtl(); record('律动 '+swingWord(v));});
   $('ctlReset').onclick=()=>{commit(); state.ctl={key:'auto',bright:null,energy:.5,mel:.45,harm:.6,swing:null}; const a=state.arr; delete a.bright; delete a.groove;
     state.feel=.7; $('feel').value=.7; $('feelV').textContent='70'; render(['chords']); toast('已恢复默认：跟随风格。');};
@@ -3278,6 +3332,6 @@ state.mood=$('mood').value;
 state.arr=compose(state.mood,scoreStyle(state.mood),null,{});
 state.verStarOnly=false;
 render(); setStatus(); detectBackend(); updUndo(); renderVersions();
-window.__shiyin={state,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c)};
+window.__shiyin={state,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
 })();
 </script>

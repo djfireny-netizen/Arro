@@ -1,6 +1,8 @@
 // 拾音编曲台 · 大模型相关：供应商、提示词、编曲
 // 这个文件改完不用重启服务，下一次请求会自动用新的版本
 
+import { measure, flags, fmt, playedBars } from './eval/metrics.mjs';
+
 // 可切换的模型供应商（都走 OpenAI 兼容接口）
 const PROVIDERS = {
   qwen:     { label: '千问',     baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1', keyEnv: 'DASHSCOPE_API_KEY', model: process.env.QWEN_MODEL || 'qwen-plus', json: true },
@@ -153,8 +155,9 @@ const CRITIC_SYSTEM = `你是一位以挑剔著称的资深 A&R 兼制作人。�
 4. 和声是否落入口水套路，各段和声有没有区别；
 5. 有没有一个只属于这首歌的想法；
 6. 旋律是否好唱、有没有换气，强拍是否落在和弦音上；
-7. 时长是否在 2 分 40 秒到 3 分 30 秒（每小节秒数 = 240 ÷ bpm）。
-然后直接输出修改后的完整方案 JSON（格式与初稿完全相同，所有字段都要有），再加一个 review 字段：3-5 条中文短句的数组，每条说明改了哪里、为什么。
+7. 时长是否在 2 分 40 秒到 3 分 30 秒。初稿后面附有程序测量的数据（时长、小节数、各段和弦数、旋律音域等），这些数字是准确的，以它为准，不要自己心算时长；改动小节数或 bpm 时，按"每小节秒数 = 240 ÷ bpm"重新核对。
+段落的 bars 只能是 4 或 8。
+然后直接输出修改后的完整方案 JSON（格式与初稿完全相同，所有字段都要有），再加一个 review 字段：3-5 条中文短句的数组，每条说明改了哪里、为什么。review 只写最终方案里真实做了的改动，里面提到的数字（小节数、时长、bpm）必须和最终方案一致。
 改动要大胆但有理由，保留初稿里真正好的部分。只输出 JSON，不要代码块标记。
 
 字段说明：harmony 的和弦写法是级数 1-7（可加 b/# 前缀和 m、maj7、m7、7、9、sus4、sus2、dim、add9、m9、maj9、6、m6 后缀）；grooves 里 drums 是 16 个字符的鼓点，bass 是 "步:长:音(R/5/O/3)"，chords 是 "步:长"；melodies 是 "步:长:级数" 的音符串（一小节 16 步，级数可加 #/b）；sections 的 moves 只能从 fill stop full_stop build drop_first_bar half_time double_octave harmony_vocal counter_line filter_sweep key_up 里选。`;
@@ -217,21 +220,49 @@ async function arrangeSong(mood, style, onStage = () => {}) {
   }
   if (!validSong(draft)) throw err || new Error('大模型没有返回完整的整首方案');
   if (style) draft.style = style;
-  if (process.env.ARRANGE_PASSES === '1') return { ...draft, passes: 1 };
+  if (process.env.ARRANGE_PASSES === '1') return finalize({ ...draft, passes: 1 });
   onStage('review', draft);
   let why = '';
   try {
-    const fixed = await callLLM(CRITIC_SYSTEM, `画面或心情：${mood}\n初稿：\n${JSON.stringify(draft)}`, 0.7);
+    const fixed = await callLLM(CRITIC_SYSTEM, `画面或心情：${mood}\n初稿：\n${JSON.stringify(draft)}\n\n${measureText(draft)}`, 0.7);
     // 有的模型只返回改过的部分：和初稿合并，缺的字段沿用初稿
     const merged = { ...draft, ...fixed,
       harmony: { ...draft.harmony, ...(fixed.harmony || {}) },
       grooves: { ...draft.grooves, ...(fixed.grooves || {}) },
       melodies: { ...draft.melodies, ...(fixed.melodies || {}) },
       sections: Array.isArray(fixed.sections) && fixed.sections.length >= 2 ? fixed.sections : draft.sections };
-    if (validSong(merged)) { if (style) merged.style = style; return { ...merged, passes: 2, draftTitle: draft.title }; }
+    if (validSong(merged)) { if (style) merged.style = style; return finalize({ ...merged, passes: 2, draftTitle: draft.title }); }
     why = '返回的方案不完整';
   } catch (e) { why = String(e && e.message || e).slice(0, 80); console.error('[第二轮修改失败]', why); }
-  return { ...draft, passes: 1, review: [`第二轮修改没有成功（${why}），这是初稿。`] };
+  return finalize({ ...draft, passes: 1, review: [`第二轮修改没有成功（${why}），这是初稿。`] });
+}
+
+/* ============ 程序测量：给复审提供准确的事实，给结果做一致性核对 ============ */
+// 大模型心算时长、数小节并不可靠，这些由程序算好交给它；这里只陈述事实，不替它做音乐判断
+function measureText(plan) {
+  const m = measure(plan), bpm = m.bpm, barSec = 240 / bpm;
+  const secs = (plan.sections || []).map((x, i) => `${i + 1}.${x.type} ${x.bars} 小节（${Math.round(playedBars(x.bars) * barSec)} 秒）`).join('；');
+  const harm = Object.entries(plan.harmony || {}).map(([k, v]) => `${k} ${Array.isArray(v) ? v.length : 0} 个和弦`).join('，');
+  const mel = Object.entries(plan.melodies || {}).map(([k, v]) => { const x = measure({ ...plan, sections: [{ type: 'chorus', bars: 8, melody: k }], melodies: { [k]: v } }).melody.chorus; return x ? `${k} ${x.notes} 个音、音域 ${x.range} 个半音` : `${k} 无法解析`; }).join('，');
+  // 只交给它事实和技术错误（时长、小节数、解析不了的写法），不交音乐上的好坏判断——那是制作人自己的事
+  const warn = flags(m).filter(f => /^(时长|段落小节数|有 \d+ 处写法|和声组不是|引用了不存在|未知手法)/.test(f));
+  return `【程序测量（准确，以此为准）】
+bpm ${bpm}，每小节 ${barSec.toFixed(2)} 秒；共 ${m.structure.sections} 段、${m.structure.playedBars} 小节，总时长 ${fmt(m.structure.playedSec)}。
+段落：${secs}
+和声：${harm}；全曲共 ${m.harmony.uniqueChords} 种和弦。
+旋律：${mel}。${warn.length ? `\n需要注意：${warn.join('；')}。` : ''}`;
+}
+// 定稿：段落小节数规范成 4/8；review 里写的时长和实际不符时，附上程序核对的真实时长
+function finalize(plan) {
+  const notes = [];
+  for (const x of plan.sections || []) {
+    if (![4, 8].includes(+x.bars)) { const b = +x.bars > 5 ? 8 : 4; notes.push(`${x.type} 写的是 ${x.bars} 小节，按 ${b} 小节演奏`); x.bars = b; }
+  }
+  const m = measure(plan), real = m.structure.playedSec;
+  const review = Array.isArray(plan.review) ? plan.review.slice() : [];
+  if (m.consistency.reviewClaimOff) review.push(`程序核对：最终整首约 ${fmt(real)}（上面提到的时长是大模型的估算，以这里为准）。`);
+  if (notes.length) review.push(`程序核对：${notes.join('；')}。`);
+  return { ...plan, review, measured: { sec: real, bars: m.structure.playedBars } };
 }
 
 function parseJSON(text) {
@@ -270,3 +301,5 @@ async function arrangeLoop(mood, style) {
   return parseJSON(j.choices?.[0]?.message?.content);
 }
 
+
+export { measureText, finalize };   // 供评测和测试使用
