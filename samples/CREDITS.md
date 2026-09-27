@@ -1,19 +1,21 @@
-# 采样来源与授权
+# Sample credits and licenses
 
-用这些采样做出来的音乐可以自由使用（包括商用）。下面是采样本身的出处，分发这个项目时请保留这份说明。
+[English](./CREDITS.md) | [简体中文](./CREDITS.zh-CN.md)
 
-| 文件夹 | 乐器 | 来源 | 授权 |
-|---|---|---|---|
-| `piano/` | Salamander Grand Piano V2（雅马哈 C5） | Alexander Holm，经 Tone.js audio 仓库（github.com/Tonejs/audio） | CC BY 3.0 |
-| `epiano/` | 电钢琴（FluidR3 GM，Electric Piano 1） | Frank Wen，经 github.com/gleitz/midi-js-soundfonts | CC BY 3.0 |
-| `bass/` | 指弹电贝斯（FluidR3 GM，Electric Bass Finger） | 同上 | CC BY 3.0 |
-| `strings/` | 弦乐合奏（FluidR3 GM，String Ensemble 1） | 同上 | CC BY 3.0 |
-| `vibes/` | 颤音琴（FluidR3 GM，Vibraphone） | 同上 | CC BY 3.0 |
-| `guitar/` `nylon/` `eguitar/` `dist/` | 钢弦木吉他、尼龙弦吉他、清音电吉他、失真吉他（FluidR3 GM） | 同上 | CC BY 3.0 |
-| `organ/` `koto/` `marimba/` `flute/` `harmonica/` | 风琴、古筝（Koto）、马林巴、长笛、口琴（FluidR3 GM） | 同上 | CC BY 3.0 |
-| `sax/` `brass/` `choir/` `slap/` `upright/` `timpani/` | 中音萨克斯、铜管组、合唱、Slap 贝斯、低音提琴、定音鼓（FluidR3 GM） | 同上 | CC BY 3.0 |
-| `drums/` | 原声鼓（Tchimera Drum Kit：底鼓、军鼓、边击、踩镲、镲片） | Vincent Sermone 录制，github.com/michaelwillis/tchimera-drum-kit | 用它做音乐：CC0；采样本身及改动版本：CC BY-SA 4.0 |
+These samples may be used to create music, including commercial music. The table below records the sources and licenses of the sample assets themselves. Retain this attribution when distributing the project and follow each asset's license terms.
 
-`drums/` 里的文件经过裁剪、淡出、响度统一并转成 mp3，按 CC BY-SA 4.0 继续以相同授权提供。
+| Directory | Instrument | Source | License |
+| --- | --- | --- | --- |
+| `piano/` | Salamander Grand Piano V2 (Yamaha C5) | Alexander Holm, via [Tone.js audio](https://github.com/Tonejs/audio) | CC BY 3.0 |
+| `epiano/` | Electric piano (FluidR3 GM, Electric Piano 1) | Frank Wen, via [midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) | CC BY 3.0 |
+| `bass/` | Fingered electric bass (FluidR3 GM, Electric Bass Finger) | Frank Wen, via midi-js-soundfonts | CC BY 3.0 |
+| `strings/` | String ensemble (FluidR3 GM, String Ensemble 1) | Frank Wen, via midi-js-soundfonts | CC BY 3.0 |
+| `vibes/` | Vibraphone (FluidR3 GM) | Frank Wen, via midi-js-soundfonts | CC BY 3.0 |
+| `guitar/` `nylon/` `eguitar/` `dist/` | Steel-string acoustic, nylon-string, clean electric, and distorted guitar (FluidR3 GM) | Frank Wen, via midi-js-soundfonts | CC BY 3.0 |
+| `organ/` `koto/` `marimba/` `flute/` `harmonica/` | Organ, koto, marimba, flute, and harmonica (FluidR3 GM) | Frank Wen, via midi-js-soundfonts | CC BY 3.0 |
+| `sax/` `brass/` `choir/` `slap/` `upright/` `timpani/` | Alto saxophone, brass section, choir, slap bass, double bass, and timpani (FluidR3 GM) | Frank Wen, via midi-js-soundfonts | CC BY 3.0 |
+| `drums/` | Acoustic drums: Tchimera Drum Kit (kick, snare, rim, hi-hats, and cymbals) | Recorded by Vincent Sermone, via [Tchimera Drum Kit](https://github.com/michaelwillis/tchimera-drum-kit) | Music made with the kit: CC0. Sample assets and modified versions: CC BY-SA 4.0. |
 
-文件名是 MIDI 音高（60 = 中央 C）。每隔三个半音取一个样本，中间的音由播放时变速得到。
+The files in `drums/` have been trimmed, faded out, level-matched, and converted to MP3. These modified assets continue to be distributed under CC BY-SA 4.0.
+
+Pitched sample filenames are MIDI note numbers, where 60 is middle C. One sample is stored every three semitones; intervening pitches are produced by changing playback rate.

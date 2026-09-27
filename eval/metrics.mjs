@@ -1,12 +1,12 @@
-// 拾音编曲台 · 评测指标
-// 输入：大模型返回的整首方案（plan JSON）。输出：可比较的数字 + 诊断旗标。
-// 思路参考 MusPy / mgeval 的客观指标，以及 Libretto 的"分轴诊断、不合成单一总分"。
-// 这里只测量事实，不评判好坏；是否算问题由 FLAGS 里的阈值给出提示，最终以人耳试听为准。
+// Arro evaluation metrics.
+// Input: a full-song plan JSON. Output: comparable measurements and diagnostic flags.
+// Inspired by MusPy/mgeval measurements and Libretto's separate diagnostic axes rather than a single total score.
+// Measure facts; flag thresholds suggest review, while listening determines musical quality.
 
 const SCALE = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
 const MOVES = ['fill', 'stop', 'full_stop', 'build', 'drop_first_bar', 'half_time', 'double_octave', 'harmony_vocal', 'counter_line', 'filter_sweep', 'key_up'];
 
-// 网页实际演奏时的小节数规则（与 index.html fromSongPlan 保持一致）
+// Playback bar-count rules, kept aligned with index.html fromSongPlan.
 export const playedBars = b => (+b === 8 ? 8 : 4);
 
 export function fmt(sec) { sec = Math.round(sec); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; }
@@ -24,7 +24,7 @@ const semi = (n, mode) => { const d = n.deg - 1, sc = SCALE[mode] || SCALE.major
 const entropy = arr => { const c = {}; arr.forEach(x => c[x] = (c[x] || 0) + 1); const n = arr.length || 1; return -Object.values(c).reduce((s, k) => s + (k / n) * Math.log2(k / n), 0); };
 const chordRoot = tok => { const m = String(tok).trim().match(/^([b#♭♯]?)([1-7])(.*)$/); return m ? { acc: m[1] ? 1 : 0, deg: +m[2], q: m[3].trim() } : null; };
 
-// 书面时长：从 review 里找"3分25秒""3:25""3 分 25 秒"
+// Extract review duration claims written as Chinese minute/second phrases or m:ss.
 export function claimedDurations(review) {
   const out = [];
   for (const line of review || []) {
@@ -43,7 +43,7 @@ function melodyStats(str, mode) {
   const p = ns.map(n => semi(n, mode));
   const iv = p.slice(1).map((x, i) => x - p[i]);
   const covered = new Set(); ns.forEach(n => { for (let s = n.step; s < n.step + n.len && s < span; s++) covered.add(s); });
-  // 节奏自相似：每 2 小节（32 步）的起音位置集合，和其它 2 小节比较（Jaccard）
+  // Rhythmic self-similarity: Jaccard overlap of note-onset sets in two-bar (32-step) windows.
   const segs = []; for (let b = 0; b < span; b += 32) segs.push(new Set(ns.filter(n => n.step >= b && n.step < b + 32).map(n => n.step - b)));
   let rep = 0, pairs = 0;
   for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
@@ -51,7 +51,7 @@ function melodyStats(str, mode) {
     const inter = [...A].filter(x => B.has(x)).length, uni = new Set([...A, ...B]).size;
     rep += inter / uni; pairs++;
   }
-  // 音程三元组重复：同一个动机形状出现了几次
+  // Repeated interval trigrams indicate recurring motif shapes.
   const grams = {}; for (let i = 0; i + 2 < iv.length; i++) { const k = iv.slice(i, i + 3).join(','); grams[k] = (grams[k] || 0) + 1; }
   const motifRepeats = Object.values(grams).filter(c => c > 1).reduce((s, c) => s + c, 0);
   const onBeat = ns.filter(n => n.step % 4 === 0).length;
@@ -92,7 +92,7 @@ export function measure(plan) {
   const moves = secs.flatMap(x => x.moves || []);
   const kicks = Object.values(G).map(g => String(g?.drums?.kick || '').replace(/[^xo]/g, '').length);
   const claims = claimedDurations(plan.review);
-  // 解析不了的写法：网页会静默丢掉这些音，等于大模型写了但听不到
+  // Unsupported notation can be skipped or simplified by the browser instead of performed as written.
   const badTok = [];
   for (const [k, v] of Object.entries(M)) for (const t of String(v || '').trim().split(/[\s,]+/).filter(Boolean)) if (!/^\d+:\d+:([#b♯♭]?-?\d+|-?\d+[#b♯♭])$/.test(t)) badTok.push(`melody.${k}:${t}`);
   for (const [k, g] of Object.entries(G)) {
@@ -126,7 +126,7 @@ export function measure(plan) {
   };
 }
 
-// 诊断旗标：只提示"值得去听一听"的地方
+// Diagnostic flags identify passages worth listening to.
 export function flags(m) {
   const f = [];
   if (m.structure.playedSec < 150) f.push('时长<2:30（网页会补段落）');

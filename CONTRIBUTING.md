@@ -1,6 +1,6 @@
 # Contributing to Arro
 
-Use English for contributions intended for repository readers: documentation, new code comments, commit messages, issues, and pull requests. The application's interface and generated explanations currently remain in Chinese. Chinese documentation is available from the language links in the README and deployment guide.
+Use English for contributions intended for repository readers: documentation, new code comments, commit messages, issues, and pull requests. The application's interface and generated explanations currently remain in Chinese. Chinese translations are linked from their English counterparts. Fixed evaluation scenes, user-facing messages, and production prompt text remain in Chinese; prompt changes require a separate evaluation. Existing script filenames and server log paths are retained for compatibility.
 
 ## Development workflow
 

@@ -11,7 +11,7 @@
 <title>拾音编曲台</title>
 <meta name="description" content="拾音编曲台：描述一个画面，由大模型担任制作人，写下和声、律动、旋律与整首曲式，导出分轨 MIDI 与音频。">
 <style>
-/* 单一深色：整站是一间关了灯的录音棚 */
+/* A single dark palette evokes a recording studio with the lights off. */
 :root{
   color-scheme:dark;
   --bg:#030716; --bg2:#070E26; --ink:#E9EDF2; --mute:#8590AE; --dim:#4B5475;
@@ -32,7 +32,7 @@ a{color:inherit}
 .mono{font-family:var(--mono)}
 .wrap{max-width:1240px;margin-inline:auto;padding-inline:var(--gut)}
 
-/* ---------- 顶栏 ---------- */
+/* ---------- Top bar ---------- */
 .top{position:fixed;left:0;right:0;top:0;z-index:30;padding-top:env(safe-area-inset-top,0px);background:linear-gradient(var(--bg),rgba(3,7,22,0));}
 .top .wrap{display:flex;align-items:center;gap:28px;height:64px}
 .logo{display:flex;align-items:baseline;gap:10px;text-decoration:none}
@@ -48,7 +48,7 @@ a{color:inherit}
 .prog{position:absolute;left:0;bottom:0;height:1px;background:var(--amber);width:0}
 @media (max-width:820px){.nav{display:none}.top .wrap{justify-content:space-between}}
 
-/* ---------- 声场（首页） ---------- */
+/* ---------- Sound field (home) ---------- */
 .hero{position:relative;min-height:clamp(760px,100vh,1040px);display:flex;flex-direction:column;overflow:hidden;background:radial-gradient(60% 55% at 90% 62%,rgba(22,150,118,.30),rgba(22,150,118,0) 70%),radial-gradient(110% 75% at 40% 100%,#0B1A5C 0%,#050B26 45%,var(--bg) 75%)}
 #gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
 .hero-txt{position:relative;z-index:2;width:100%;padding-top:calc(118px + env(safe-area-inset-top,0px));pointer-events:none}
@@ -67,7 +67,7 @@ h1 .nw{font-weight:inherit;white-space:nowrap}
 .hero-cta{margin-top:26px;display:flex;align-items:center;gap:18px;pointer-events:auto}
 .hero-cta small{font:400 11px/1 var(--mono);letter-spacing:.2em;color:var(--mute)}
 
-/* 控制台 */
+/* Console */
 .hud{position:relative;z-index:3;margin-top:auto;padding-top:clamp(120px,18vh,220px);padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
 .hud .wrap{display:grid;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) auto;gap:18px 28px;align-items:center}
 .glass{background:rgba(6,12,36,.55);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--line);border-radius:16px;padding:16px 20px}
@@ -113,7 +113,7 @@ input[type=range]::-moz-range-thumb{width:9px;height:18px;border:0;border-radius
 }
 @media (max-width:560px){.presets{grid-template-columns:1fr}.hud-box{grid-template-columns:1fr}#play{width:54px;height:54px}}
 
-/* ---------- 通用段落 ---------- */
+/* ---------- Shared sections ---------- */
 section.s{position:relative;padding-block:clamp(96px,13vw,180px);border-top:1px solid var(--line)}
 .lbl{display:flex;gap:16px;align-items:center;font:400 11px/1 var(--mono);letter-spacing:.3em;color:var(--mute);margin-bottom:34px}
 .lbl b{font-weight:400;color:var(--amber)}
@@ -121,7 +121,7 @@ h2 .ph{display:inline-block;white-space:nowrap}
 h2{font:200 clamp(34px,5vw,68px)/1.2 var(--serif);margin:0;letter-spacing:.02em;text-wrap:balance;max-width:16ch}
 .lede{color:var(--mute);max-width:34em;margin:22px 0 0}
 
-/* 流程：信号链 */
+/* Workflow: signal chain */
 .chain{margin-top:72px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;position:relative}
 .chain::before{content:"";position:absolute;left:0;right:0;top:9px;height:1px;background:var(--line2)}
 .chain::after{content:"";position:absolute;top:6px;left:0;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 16px 3px rgba(52,214,166,.7);animation:sig 5.5s cubic-bezier(.6,0,.4,1) infinite}
@@ -135,7 +135,7 @@ h2{font:200 clamp(34px,5vw,68px)/1.2 var(--serif);margin:0;letter-spacing:.02em;
 .node code{display:block;margin-top:22px;font:400 12.5px/1.8 var(--mono);color:var(--warm);border-left:1px solid var(--green);padding-left:14px}
 @media (max-width:860px){.chain{grid-template-columns:1fr;gap:56px}.chain::before{left:9px;right:auto;top:0;bottom:0;width:1px;height:auto}.chain::after{display:none}.node{padding-left:44px;padding-right:0}.node .dot{position:absolute;left:0;top:0}}
 
-/* 结构：环形编曲图 */
+/* Structure: circular arrangement diagram */
 .form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:40px 72px;align-items:center}
 .polar{position:relative;width:100%;max-width:600px;aspect-ratio:1;justify-self:center}
 #polar{width:100%;height:100%;display:block;cursor:crosshair}
@@ -147,7 +147,7 @@ h2{font:200 clamp(34px,5vw,68px)/1.2 var(--serif);margin:0;letter-spacing:.02em;
 .legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:22px;font:400 11px/1.6 var(--mono);letter-spacing:.1em;color:var(--dim)}
 @media (max-width:900px){.form{grid-template-columns:1fr}}
 
-/* 导出：文件树 */
+/* Export: file tree */
 .exp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px 72px;margin-top:64px;align-items:start}
 .olist{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .olist li{display:grid;grid-template-columns:78px 1fr;gap:4px 20px;padding:22px 0;border-bottom:1px solid var(--line);cursor:default;transition:padding .25s}
@@ -166,7 +166,7 @@ h2{font:200 clamp(34px,5vw,68px)/1.2 var(--serif);margin:0;letter-spacing:.02em;
 .term .cap{padding:0 20px 16px;font:400 11px/1.6 var(--mono);color:var(--dim)}
 @media (max-width:900px){.exp{grid-template-columns:1fr}.term{position:relative;top:0}}
 
-/* 原则 */
+/* Principles */
 .rules{margin-top:64px;border-top:1px solid var(--line)}
 .rule{display:grid;grid-template-columns:70px minmax(0,1fr) minmax(0,1.1fr);gap:8px 40px;padding:34px 0;border-bottom:1px solid var(--line);align-items:baseline;transition:background .3s}
 .rule:hover{background:linear-gradient(90deg,rgba(70,100,255,.05),transparent 70%)}
@@ -175,7 +175,7 @@ h2{font:200 clamp(34px,5vw,68px)/1.2 var(--serif);margin:0;letter-spacing:.02em;
 .rule p{margin:0;color:var(--mute)}
 @media (max-width:820px){.rule{grid-template-columns:1fr}}
 
-/* 尾奏 */
+/* Outro */
 .outro{position:relative;overflow:hidden;min-height:620px;display:flex;align-items:center}
 #liss{position:absolute;right:max(-120px,calc(50% - 720px));top:50%;width:min(640px,90vw);aspect-ratio:1;transform:translateY(-50%);opacity:.95;pointer-events:none}
 .outro .wrap{position:relative;z-index:2;width:100%}
@@ -333,7 +333,7 @@ const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const NAMES=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 const nn=m=>NAMES[((m%12)+12)%12]+(Math.floor(m/12)-1);
 
-/* =============== 四段示例小样（和 spec.py 里的是同一份） =============== */
+/* =============== Four demo arrangements, matching the original spec.py analysis =============== */
 const P={
   synthwave:{name:'霓虹隧道',en_:'Synthwave',key:'A 小调',bpm:118,sw:0,br:80,en:80,lead:'saw',arp:true,
     mood:'深夜一个人开车穿过城市，霓虹一格一格往后退',
@@ -365,7 +365,7 @@ function bassNotes(p,E){const o=[];p.ch.forEach((c,i)=>{const b=i*16,r=c.b;
 function arpNotes(p,E){if(!p.arp||E<50)return[];const o=[];p.ch.forEach((c,i)=>{for(let s=0;s<16;s++)o.push([i*16+s,1,c.v[s%c.v.length]+12]);});return o;}
 let cache=null;const notes=()=>cache||(cache={mel:P[cur].mel.map(([b,s,l,m])=>[b*16+s,l,m]),bass:bassNotes(P[cur],S.en),arp:arpNotes(P[cur],S.en)});
 
-/* =============== 声音：Web Audio 实时合成 =============== */
+/* =============== Real-time Web Audio synthesis =============== */
 let ctx=null,filt,verb,noise,ana,playing=false,step=0,nextT=0,timer=null,vq=[],curStep=-1,curT=0;
 function initAudio(){
   if(ctx)return;ctx=new (window.AudioContext||window.webkitAudioContext)();
@@ -413,13 +413,13 @@ function stop(){playing=false;clearInterval(timer);curStep=-1;$('play').classLis
 $('play').onclick=()=>playing?stop():start();
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&!/INPUT|TEXTAREA|BUTTON|^A$/.test(document.activeElement.tagName)){e.preventDefault();playing?stop():start();}});
 
-/* 推子 */
+/* Faders. */
 function setBright(){if(filt)filt.frequency.setTargetAtTime(500*Math.pow(2,S.br/100*4.6),ctx.currentTime,.05);}
 const LBL={bright:v=>v<25?'暗':v<50?'柔':v<75?'亮':'很亮',energy:v=>v<10?'只有和声':v<34?'低':v<67?'中':'高',swing:v=>v<8?'直':v<35?'轻 SHUFFLE':'重 SHUFFLE'};
 function paint(el){el.style.setProperty('--p',el.value+'%');$('o'+el.id).textContent=LBL[el.id](+el.value);}
 ['bright','energy','swing'].forEach(id=>$(id).addEventListener('input',e=>{const v=+e.target.value;if(id==='bright'){S.br=v;setBright();}if(id==='energy'){S.en=v;cache=null;}if(id==='swing')S.sw=v;paint(e.target);}));
 
-/* 选小样 */
+/* Demo selection. */
 let typeT=null;
 function typeMood(s){clearInterval(typeT);const el=$('mood');if(RM){el.textContent=s;return;}el.textContent='';let i=0;typeT=setInterval(()=>{el.textContent=s.slice(0,++i);if(i>=s.length)clearInterval(typeT);},50);}
 $('presets').innerHTML=ORDER.map((id,i)=>`<button class="pre" data-id="${id}" aria-pressed="false"><i>0${i+1}</i><b>${P[id].name}</b><small>${P[id].en_} · ${P[id].bpm}</small></button>`).join('');
@@ -433,11 +433,11 @@ function choose(id){cur=id;const p=P[id];cache=null;
   pulse=1;
 }
 
-/* =============== WebGL：和弦驻波（左右对称、上下镜像） =============== */
+/* =============== WebGL chord standing waves, symmetric across both axes =============== */
 const NP=240,K=36;
 const cv=$('gl');let gl=null,prog,uni={},pulse=0,restT=0,frameI=0,rmsS=0;
 const mouse={x:0,y:0,tx:0,ty:0,s:0,ts:0};
-// 当前和目标：四个振动模式（来自和弦音的频率比）、强度（NumPy 分析）、角速度
+// Current/target state: four vibration modes from chord frequency ratios, NumPy-derived intensity, and angular speed.
 const Z={kf:[1.5,1.8,2.2,3],amp:[1,.7,.6,.5],om:[1,1.2,1.5,2]},TG={kf:[1.5,1.8,2.2,3],amp:[1,.7,.6,.5],om:[1,1.2,1.5,2]};
 function target(bar){const p=P[cur],c=p.ch[bar],tones=[...c.v,c.v[0]+12].slice(0,4),lo=Math.min(...tones);
   TG.kf=tones.map(m=>1.25*Math.pow(2,(m-lo)/12));TG.om=tones.map(m=>.9*Math.pow(2,(m-lo)/12));TG.amp=HARM[cur][bar].slice(0,4);}
@@ -510,7 +510,7 @@ function drawGL(t,dt,bar){
       gl.uniform1f(uni.yoff,0);gl.uniform1f(uni.inten,1);gl.drawArrays(gl.LINE_STRIP,k*NP,NP);}}
 }
 
-/* =============== Canvas：五度圈和弦星图 =============== */
+/* =============== Canvas circle-of-fifths chord map =============== */
 const sc=$('star'),sx=sc.getContext('2d');const FIFTHS=[0,7,2,9,4,11,6,1,8,3,10,5];
 function fitCanvas(c){const r=c.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);c.width=r.width*d;c.height=r.height*d;const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return[r.width,r.height];}
 let SW=150;
@@ -530,7 +530,7 @@ function drawStar(bar,frac){
     pts.forEach(([x,y])=>{sx.beginPath();sx.arc(x,y,on?2.6:1.4,0,Math.PI*2);sx.fillStyle=on?'#34D6A6':'rgba(233,237,242,.35)';sx.fill();});});
 }
 
-/* =============== Canvas：环形编曲图 =============== */
+/* =============== Canvas circular arrangement view =============== */
 const SEC=[
   {n:'前奏',b:4,t:'只留琶音与铺底，引擎初启，城市还在远处。',l:[0,0,1,0,2,2]},
   {n:'主歌',b:8,t:'鼓与贝斯稳如引擎，和声退居其后，把空间让给旋律。',l:[2,2,1,2,0,1]},
@@ -568,7 +568,7 @@ pc.addEventListener('pointermove',e=>{const r=pc.getBoundingClientRect(),x=(e.cl
   if(d<.15||d>.5){hoverSec=-1;return;}let a=Math.atan2(y,x)+Math.PI/2;if(a<0)a+=Math.PI*2;const bar=a/(Math.PI*2)*TOT;hoverSec=SEC.findIndex((s,i)=>bar>=secStart[i]&&bar<secStart[i]+s.b);});
 pc.addEventListener('pointerleave',()=>hoverSec=-1);
 
-/* =============== Canvas：李萨如图形（音程的形状） =============== */
+/* =============== Canvas Lissajous interval shapes =============== */
 const lc=$('liss'),lx=lc.getContext('2d');let LW=600;
 const IV=[['纯五度',3,2],['纯四度',4,3],['大三度',5,4],['小三度',6,5],['大六度',5,3]];let ivI=0,ivT=0;
 function drawLiss(t){
@@ -582,7 +582,7 @@ function drawLiss(t){
   $('ratio').textContent=`${nm} ${a} : ${b}`;
 }
 
-/* =============== 主循环 =============== */
+/* =============== Main loop =============== */
 let lastBeat=-1,last=performance.now(),glOK=true,visHero=true,visPolar=false,visLiss=false;
 try{initGL();}catch(e){glOK=false;document.documentElement.classList.add('nogl');cv.hidden=true;}
 function sizes(){resizeGL();SW=fitCanvas(sc)[0];PW=fitCanvas(pc)[0];LW=fitCanvas(lc)[0];}
@@ -599,11 +599,11 @@ function frame(now){
   if(visLiss){ivT+=dt;if(ivT>7){ivT=0;ivI=(ivI+1)%IV.length;}drawLiss(RM?0:t);}
   requestAnimationFrame(frame);
 }
-/* 顶栏进度和当前段落 */
+/* Header progress and active section. */
 const navs=[...document.querySelectorAll('.nav a')],ids=['top','flow','form','out','rules'];
 function onScroll(){const m=document.documentElement.scrollHeight-innerHeight;$('prog').style.width=(m>0?scrollY/m*100:0)+'%';
   let a=0;ids.forEach((id,i)=>{if($(id).getBoundingClientRect().top<innerHeight*.4)a=i;});navs.forEach((n,i)=>n.classList.toggle('on',i===a));}
-/* 导出列表 ↔ 文件树 */
+/* Export list and file-tree interaction. */
 const lis=[...document.querySelectorAll('#olist li')],spans=[...document.querySelectorAll('#tree span')];let expI=0,expUser=false;
 function lightExp(k){lis.forEach(l=>l.classList.toggle('on',l.dataset.k===k));spans.forEach(s=>s.classList.toggle('on',s.dataset.k===k));}
 lis.forEach(l=>{l.addEventListener('pointerenter',()=>{expUser=true;lightExp(l.dataset.k);});});

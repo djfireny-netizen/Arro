@@ -1,12 +1,12 @@
-# 放到 /etc/systemd/system/shiyin.service
-# 然后：sudo systemctl daemon-reload && sudo systemctl enable --now shiyin
+# Install as /etc/systemd/system/shiyin.service.
+# Then run: sudo systemctl daemon-reload && sudo systemctl enable --now shiyin
 [Unit]
 Description=Shiyin arrangement server
 After=network.target
 
 [Service]
 Type=simple
-# 改成你放代码的目录和运行用户
+# Set the working directory and service user for your deployment.
 WorkingDirectory=/srv/shiyin
 ExecStart=/usr/bin/node server.mjs
 Restart=always

@@ -466,7 +466,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
 <script>
 (() => {
 'use strict';
-/* ============ 乐理基础 ============ */
+/* ============ Music theory primitives ============ */
 const NOTE_NAMES=['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 const NOTE_FLAT=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const NOTE_SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -491,7 +491,7 @@ const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 const pickExcl=(arr,ex)=>{const o=arr.filter(x=>x!==ex);return pick(o.length?o:arr);};
 const clampInt=(v,a,b,d)=>{v=Math.round(Number(v));return Number.isFinite(v)?Math.min(b,Math.max(a,v)):d;};
 
-/* ============ 风格与素材库 ============ */
+/* ============ Styles and musical material ============ */
 const STYLES={
   synthwave:{name:'合成器浪潮',mode:'minor',bpm:[98,112],swing:0,keys:[9,4,2,11,6],sev:false,
     progs:[[0,5,2,6],[0,6,5,6],[0,5,3,6],[0,3,5,6]],drums:['sw_basic','sw_drive'],bass:['pulse8','octave8'],chords:['pad','gate'],melody:['sparse','hook'],
@@ -520,7 +520,7 @@ for(const [id,x] of Object.entries({
   citypop:{arp:['broken8','up8'],perc:['conga','tamb'],snd:'soft'},
   trap:{arp:['up8','broken8'],perc:['rim','shaker'],snd:'bell'}
 })){const st=STYLES[id];st.arp=x.arp;st.perc=x.perc;st.pad=['whole','halves'];st.sound.arp=x.snd;}
-// 每种风格用哪些真实乐器采样（null = 用合成器，电子风格本来就该是合成器的声音）
+// Sampled instruments per style; null selects synthesis, including for electronic styles.
 const KIT={
   synthwave:{drums:'synth',chords:null,bass:null,lead:null,arp:null,pad:null},
   lofi:{drums:'acoustic',chords:'epiano',bass:'bass',lead:'vibes',arp:'epiano',pad:'strings'},
@@ -529,7 +529,7 @@ const KIT={
   citypop:{drums:'acoustic',chords:'epiano',bass:'bass',lead:null,arp:'epiano',pad:'strings'},
   trap:{drums:'synth',chords:null,bass:null,lead:null,arp:null,pad:'strings'}
 };
-// 侧链压缩的深度：底鼓一响，和弦、铺底、琶音被压下去再弹回来
+// Sidechain depth: each kick ducks the chords, pad, and arpeggio before they recover.
 const PUMP={house:.6,synthwave:.45,trap:.3,citypop:.22,lofi:.2,ballad:0};
 const ARPS={
   up16:{name:'十六分上行',tip:'和弦音从低到高快速循环，合成器浪潮和电子乐最标志性的"闪烁感"。',n:[0,1,2,3,0,1,2,3,0,1,2,3,0,1,2,3].map((i,k)=>[k,1,i])},
@@ -541,7 +541,7 @@ const PADS={
   whole:{name:'弦乐长音',tip:'一层很轻的弦乐垫在最底下，单独听几乎听不出来，拿掉却会觉得空。',h:[[0,16]]},
   halves:{name:'弦乐换弓',tip:'每两拍重新拉一次弓，让铺底也有呼吸感。',h:[[0,8],[8,8]]}
 };
-const PERC_LANES=['sh','tb','cg','cl','rm']; // 沙锤 铃鼓 高康加 低康加 边击
+const PERC_LANES=['sh','tb','cg','cl','rm']; // Shaker, tambourine, high conga, low conga, rimshot.
 const PERC={
   shaker:{name:'沙锤',tip:'沙锤在每个十六分音符上沙沙作响，律动一下子就流动起来。',sh:'oxoxoxoxoxoxoxox'},
   tamb:{name:'铃鼓',tip:'铃鼓落在 2、4 拍，给军鼓镀一层亮边。',tb:'....x.......x...',sh:'o.o.o.o.o.o.o.o.'},
@@ -549,7 +549,7 @@ const PERC={
   rim:{name:'边击',tip:'敲鼓边的清脆声音，Lo-fi 和 Trap 常用来点缀空拍。',rm:'...x..x....x..x.',sh:'o.o.o.o.o.o.o.o.'}
 };
 const FX_TIP='只在"整首歌曲"里出现：副歌前一小节自动加上升音，段落开头加镲片，进桥段时加下降音。';
-const LANES=['k','s','c','h','o']; // 底鼓 军鼓 拍手 闭镲 开镲
+const LANES=['k','s','c','h','o']; // Kick, snare, clap, closed hi-hat, open hi-hat.
 const DRUMS={
   sw_basic:{name:'复古直拍',tip:'底鼓在 1、3 拍，军鼓在 2、4 拍，最经典的流行骨架。',k:'x.......x.......',s:'....x.......x...',h:'x.x.x.x.x.x.x.x.'},
   sw_drive:{name:'公路推进',tip:'十六分音符的踩镲一直往前推，开车时的速度感就来自这里。',k:'x.....x.x.......',s:'....x.......x...',h:'xoxoxoxoxoxoxoxo'},
@@ -604,8 +604,8 @@ const FAST=['燃','热血','追逐','派对','跳舞','狂欢','战斗','快','�
 const SLOW=['慢','安静','深夜','睡','孤独','雨','失恋'];
 const SAD=['失恋','难过','眼泪','孤独','离别','想念','再见','雨','一个人'];
 const PRESETS=['深夜一个人开车穿过城市','下雨天窗边写作业','失恋后第一次一个人吃饭','夏天傍晚的海边兜风','周五晚上的地下派对','赛博朋克街头追逐'];
-/* ============ 更多风格 ============ */
-// 每个风格：调式、速度、和弦走向、鼓型、贝斯型、和弦节奏、音色；KIT 里写用哪些真实乐器采样
+/* ============ Additional styles ============ */
+// Each style defines mode, tempo, progressions, drum/bass/chord patterns, and timbres; KIT selects sampled instruments.
 Object.assign(STYLES,{
   guofeng:{name:'国风',group:'器乐',mode:'major',bpm:[72,92],swing:0,keys:[2,4,7,9,0],sev:false,progs:[[3,4,2,5],[5,3,4,0],[0,5,3,4],[5,4,3,4]],drums:['gf_light','gf_beat'],bass:['gf_bass','sustain'],chords:['arp','gf_pluck'],sound:{bass:'sub',pad:'piano',lead:'sine',arp:'soft'},verb:.45,arp:['up8','updown16'],perc:['rim','shaker'],gain:2.05},
   folk:{name:'民谣',group:'流行',mode:'major',bpm:[78,100],swing:.1,keys:[7,2,9,4,0],sev:false,progs:[[0,4,5,3],[0,5,3,4],[3,4,0,0],[5,3,0,4]],drums:['folk_soft','folk_cajon'],bass:['altern','sustain'],chords:['strum','strum2'],sound:{bass:'sub',pad:'piano',lead:'sine',arp:'glass'},verb:.3,arp:['up8'],perc:['shaker','tamb'],gain:2.1},
@@ -754,7 +754,7 @@ const FAMOUS={
   'minor:0,6,5,3':'i–VII–VI–iv：一路往下走，像下楼梯，带着一点宿命感。'
 };
 
-/* ============ 生成 ============ */
+/* ============ Generation ============ */
 function rankStyles(text){
   return Object.entries(MOOD_WORDS).map(([id,words])=>{let sc=Math.random()*.6;for(const w of words)if(text.includes(w))sc+=1+w.length*.2;return [id,sc];}).sort((x,y)=>y[1]-x[1]).map(x=>x[0]);
 }
@@ -769,7 +769,7 @@ function scoreStyle(text){
 }
 const has=(text,list)=>list.some(w=>text.includes(w));
 
-// 鼓的小节变化：第 2、4 小节加轻军鼓，第 4 小节末尾收掉踩镲、换一下开镲，像吸一口气
+// Bar variation: ghost snares in bars 2/4, with hi-hat changes at the end of bar 4 to create a breath.
 function drumVars(lanes,fill){
   const extra=[], drop=[];
   if(Math.random()<.4) extra.push([rand(1,3)*16+pick([6,10,14]),'k',.7]);
@@ -806,18 +806,18 @@ function newProg(st,mood,exKey){
   return pick(o.length?o:pool).map(deg=>({deg,sev:st.sev}));
 }
 
-/* 调外和弦：chr 是相对主音的半音（根、三、五、七），deg 是它最接近的调内级数 */
+/* Chromatic chords: chr stores semitones above the tonic; deg is the nearest diatonic degree. */
 const CHR={
   major:{bVI:{deg:5,chr:[8,12,15,19],rn:'♭VI',fl:1},bVII:{deg:6,chr:[10,14,17,20],rn:'♭VII',fl:1},iv:{deg:3,chr:[5,8,12,15],rn:'iv',fl:1},
     VofV:{deg:1,chr:[2,6,9,12],rn:'V/V',dom:1},VofVI:{deg:2,chr:[4,8,11,14],rn:'V/vi',dom:1},I7:{deg:0,chr:[0,4,7,10],rn:'I',dom:1}},
   minor:{V:{deg:4,chr:[7,11,14,17],rn:'V',dom:1},IV:{deg:3,chr:[5,9,12,15],rn:'IV'},bII:{deg:1,chr:[1,5,8,12],rn:'♭II',fl:1},ii:{deg:1,chr:[2,5,9,12],rn:'ii'}}
 };
 CHR.major.II={deg:1,chr:[2,6,9,14],rn:'II'};
-CHR.major.Vsus={deg:4,chr:[7,12,14,17],rn:'V'};CHR.minor.Vsus={deg:4,chr:[7,12,14,17],rn:'V'};   // 利底亚色彩：II 级大三和弦，七音位置放九音
+CHR.major.Vsus={deg:4,chr:[7,12,14,17],rn:'V'};CHR.minor.Vsus={deg:4,chr:[7,12,14,17],rn:'V'};   // Lydian color: major II triad with a ninth in the seventh's position.
 const chrChord=(mode,k,sev)=>{const c=CHR[mode][k];const s7=sev||!!c.dom;return {deg:c.deg,sev:s7,chr:c.chr.slice(),rn:c.rn,fl:c.fl};};
-// 和声丰富度：简单 → 只用三和弦；丰富 → 全部七和弦，再往上加九音
+// Harmonic richness moves from triads to seventh chords, then ninths.
 const harmLvl=()=>state&&state.ctl?state.ctl.harm:.6;
-/* 明暗：从暗到亮对应 弗里几亚色彩 → 小调 → 多利亚色彩 → 大调借小调 → 大调 → 利底亚色彩 */
+/* Brightness maps Phrygian color, minor, Dorian color, major with minor borrowing, major, and Lydian color. */
 const BRIGHT=[[.15,'很暗 · ♭II'],[.35,'暗 · 小调'],[.5,'暗里带光'],[.65,'亮里带阴影'],[.85,'亮 · 大调'],[1.01,'很亮 · II']];
 const brightWord=b=>BRIGHT.find(x=>b<x[0])[1];
 const modeOfBright=b=>b<.5?'minor':'major';
@@ -840,7 +840,7 @@ function chordInfo(a,i){
   const sev=H<.3?false:H>.72?true:P.sev;
   const idx=sev?[0,2,4,6]:[0,2,4];
   let semis=P.chr?(P.exact?(H<.3?P.chr.slice(0,3):P.chr.slice()):P.chr.slice(0,sev?4:3)):idx.map(k=>{const d=deg+k;return sc[d%7]+12*Math.floor(d/7);});
-  if(!P.chr&&STYLES[a.styleId]&&STYLES[a.styleId].domAll){const r=semis[0];semis=[r,r+4,r+7].concat(sev?[r+10]:[]);}   // 蓝调：每个和弦都是属七
+  if(!P.chr&&STYLES[a.styleId]&&STYLES[a.styleId].domAll){const r=semis[0];semis=[r,r+4,r+7].concat(sev?[r+10]:[]);}   // Blues uses dominant sevenths for every chord.
   const rel=semis.map(s=>s-semis[0]); const th=rel[1],fi=rel[2],se=rel[3];
   let q='',rn=ROMAN[deg];
   if(th===4&&fi===7){q='';}
@@ -855,11 +855,11 @@ function chordInfo(a,i){
   if(sev&&se===12){q='add9';}
   if(th===5&&fi===7){q=sev&&se===10?'7sus4':'sus4';}
   if(P.exact&&P.q!=null&&H>=.3) q=P.q;
-  // 丰富度很高时再叠一个九音（大七→大九、小七→小九、属七→属九）
+  // At high richness, extend major, minor, and dominant sevenths to ninths.
   let ext=false;
   if(H>.84&&sev&&semis.length===4&&['maj7','m7','7'].includes(q)){
     const nine=semis[0]+14;
-    if(P.chr||sc.includes(mod(nine,12))){semis.push(nine);q={maj7:'maj9',m7:'m9','7':'9'}[q];ext=true;}   // 九音在调内（或本身是调外和弦）才加
+    if(P.chr||sc.includes(mod(nine,12))){semis.push(nine);q={maj7:'maj9',m7:'m9','7':'9'}[q];ext=true;}   // Add a ninth when it is diatonic or the chord itself is chromatic.
   }
   let degTones=idx.map(k=>(deg+k)%7);
   if(ext&&!P.chr) degTones.push((deg+1)%7);
@@ -873,12 +873,12 @@ function chordInfo(a,i){
   return {sp:sharp?NOTE_SHARP:NOTE_FLAT,name:(sharp?NOTE_SHARP:NOTE_FLAT)[rootPc]+q,roman:rn,rootPc,pcs:semis.map(s=>mod(a.root+s,12)),degTones,chr:!!P.chr};
 }
 
-// 让旋律会换气：每两小节是一句，句尾空出来；再用弱起音接进下一句，或者晚半拍进
+// Phrase breathing: gaps every two bars, with pickups or delayed entries into the next phrase.
 function breathe(notes,opt={}){
   let ns=notes.map(n=>({...n})).sort((x,y)=>x.step-y.step);
   for(const end of [32,64]){
     const lim=end-4;
-    // 第 4 小节最后一拍整拍留空：弱起只放在第 2 句之前，不跨到下一轮循环
+    // Leave bar 4's final beat empty; place pickups before phrase 2 rather than across the loop boundary.
     ns=ns.filter(n=>!(n.step>=lim&&(end===64||n.step<end-2)));
     ns.forEach(n=>{if(n.step<lim&&n.step+n.len>lim) n.len=Math.max(2,lim-n.step);});
   }
@@ -898,10 +898,10 @@ function breathe(notes,opt={}){
   }
   return ns.sort((x,y)=>x.step-y.step);
 }
-// ============ 旋律引擎：动机 + 重复 + 回答 ============
-// 抓耳的旋律 = 一个短小好记的动机，原样重复几次，再用一句"回答"收住。
-// 结构：第 1 小节是动机（前半拍型、后半拍型相同），第 2 小节回答并停在不稳定的音上；
-//      第 3 小节再唱一次动机（往往抬高一点，形成全曲高点），第 4 小节回答并落回主音。
+// ============ Melody engine: motif, repetition, and answer ============
+// The local engine repeats a short motif and closes it with an answering phrase.
+// Bar 1 introduces the motif; bar 2 answers on an unstable pitch.
+// Bar 3 repeats and often raises the motif; bar 4 answers and resolves to the tonic.
 const CELLS={
   c332:{name:'三三二',n:[[0,3],[3,3],[6,2]],tip:'"三三二"切分节奏，流行和舞曲里最抓耳的律动之一。'},
   dot:{name:'附点',n:[[0,3],[3,1],[4,4]],tip:'前长后短的附点节奏，像往前迈了一步。'},
@@ -944,7 +944,7 @@ function pickForm(styleId,ex,low){
   if(low) pool=pool.filter(f=>f!=='SEQ');
   const o=pool.filter(f=>f!==ex); return pick(o.length?o:pool);
 }
-/* 给旋律打分（0–100）：记忆点（第 1、3 小节像不像）、音域、级进和跳进的比例、强拍落在和弦音上、有没有换气、结尾稳不稳、音够不够多样 */
+/* Melody score (0–100): motif resemblance, range, steps/leaps, chord tones, breathing, resolution, and pitch variety. */
 function scoreMelody(notes,a){
   if(!notes||notes.length<5) return 0;
   const sc=SCALES[a.mode], infos=[0,1,2,3].map(i=>chordInfo(a,i));
@@ -957,26 +957,26 @@ function scoreMelody(notes,a){
   const sr=step/(n-1); if(sr<.45)pen((.45-sr)*60); if(sr>.9)pen((sr-.9)*60); pen(leap*5);
   const strong=ns.filter(x=>x.step%8===0); const ct=strong.filter(x=>infos[Math.floor(x.step/16)%4].pcs.includes(mod(a.root+midi(x),12))).length;
   if(strong.length) {const r=ct/strong.length; if(r<.6)pen((.6-r)*50);}
-  // 记忆点：第 1 小节和第 3 小节的节奏越像越好记，但完全一样又太死
+  // Compare bar 1 and bar 3 rhythms, rewarding recognizable repetition with variation.
   const rh=b=>new Set(ns.filter(x=>Math.floor(x.step/16)===b).map(x=>x.step%16));
   const r0=rh(0),r2=rh(2); const inter=[...r0].filter(x=>r2.has(x)).length, uni=new Set([...r0,...r2]).size||1, sim=inter/uni;
   if(sim<.35)pen((.35-sim)*40); if(sim>.95)pen(6);
-  // 换气：第 2 小节或第 4 小节末尾要有空
+  // Breathing space at the end of bar 2 or bar 4.
   const gapAt=e=>!ns.some(x=>x.step<e&&x.step+x.len>e-3);
   if(!gapAt(32)&&!gapAt(64))pen(10);
   const last=ns[n-1]; if(![0,2,4].includes(mod(last.deg,7)))pen(8);
   const distinct=new Set(m).size; if(distinct<5)pen((5-distinct)*6);
-  // 同一个音连着太多次
+  // Excessive consecutive repetitions of the same pitch.
   let run=1,maxRun=1; for(let i=1;i<n;i++){run=m[i]===m[i-1]?run+1:1;maxRun=Math.max(maxRun,run);} if(maxRun>3)pen((maxRun-3)*6);
   if(span<9) pen((9-span)*2);
-  // 高点最好出现在后半段（第 3 小节前后），像情绪推到顶
+  // Favor a peak in the latter half, around bar 3.
   const top=Math.max(...m), ti=ns.findIndex((x,i)=>m[i]===top); if(ns[ti].step<24) pen(5);
   const cnt={}; m.forEach(x=>cnt[x]=(cnt[x]||0)+1); const modeShare=Math.max(...Object.values(cnt))/n; if(modeShare>.32) pen((modeShare-.32)*60);
   if(new Set(ns.map(x=>x.len)).size<3) pen(5);
-  if(!ns.some(x=>x.step%4===3||x.step%4===1||x.step%8===6)) pen(4);   // 一点切分都没有会显得平
+  if(!ns.some(x=>x.step%4===3||x.step%4===1||x.step%8===6)) pen(4);   // Account for a complete absence of syncopation.
   return Math.max(0,Math.min(100,Math.round(sc0)));
 }
-// 一次写几版不同结构的旋律，挑分最高的，第二名留作"另一版"
+// Generate several melodic forms, keep the highest-scoring one, and retain the runner-up as an alternative.
 function bestMelody(st,a,ex,opt={},k=3){
   const cands=[], used=new Set();
   for(let i=0;i<k+2&&cands.length<k;i++){
@@ -984,7 +984,7 @@ function bestMelody(st,a,ex,opt={},k=3){
     if(used.has(f)&&i<k+1) continue; used.add(f);
     const mm=newMelody(st,a,ex,{...opt,form:opt.form||f}); mm.score=scoreMelody(mm.notes,a); cands.push(mm);
   }
-  // 分数接近时加一点随机，并避开上一次用过的结构，免得每次都是同一种
+  // Randomize close scores and account for the previously used form to vary successive results.
   cands.forEach(c=>{c._k=c.score+Math.random()*8-4-(c.form===lastMelForm?6:0);});
   cands.sort((x,y)=>y._k-x._k); cands.forEach(c=>delete c._k);
   return cands;
@@ -996,7 +996,7 @@ function setMelody(a,cands){
 function newMelody(st,a,ex,opt={}){
   const styleId=Object.keys(STYLES).find(k=>STYLES[k]===st)||'ballad';
   const C=melLvl();
-  // 旋律复杂度：好唱 → 挑音少的节奏型；花哨 → 挑音多、切分多的，还会用到本风格之外的现代节奏型
+  // Melodic complexity selects sparse or dense/syncopated rhythms, including modern patterns outside the style.
   let cells=STYLE_CELLS[styleId].slice();
   if(C>.7) cells=cells.concat(['syn','late']);
   const byN=cells.slice().sort((x,y)=>CELLS[x].n.length-CELLS[y].n.length||(x==='syn'?1:-1));
@@ -1012,18 +1012,18 @@ function newMelody(st,a,ex,opt={}){
   const snap=(d,bar)=>{for(let r=0;r<=3;r++){for(const x of [d-r,d+r]){if(isCT(x,bar)&&PEN.includes(mod(x,7)))return x;}}for(let r=0;r<=3;r++){for(const x of [d-r,d+r])if(isCT(x,bar))return x;}return d;};
   const lo=opt.low?-3:0, hi=(opt.low?7:opt.end==='high'?9:11)+(C>.72?2:C<.28?-2:0);
   const clamp=d=>Math.max(lo,Math.min(hi,d));
-  const fold=d=>{while(d>hi)d-=3;while(d<lo)d+=3;return d;};   // 超出音域就折回来，而不是全挤在边上
+  const fold=d=>{while(d>hi)d-=3;while(d<lo)d+=3;return d;};   // Fold pitches back into range instead of clamping them all to the boundary.
   const notes=[];
   const put=(bar,s0,l,d,strong)=>{let x=fold(d);if(strong)x=snap(x,bar);notes.push({step:bar*16+s0,len:l,deg:clamp(x)});return x;};
-  // 动机：前半小节一次，后半小节再来一次（原样、下移或上移一级）
+  // State the motif in each half-bar, with optional one-degree transposition.
   const base=d2p(snap(opt.base??(opt.low?pick([0,2,4]):pick([4,5,7])),0));
   const cont=contourOf(type,cn);
-  // 后半小节：副歌用同一个节奏型（好记），主歌、预副歌换一个节奏型和走向（不那么重复）
+  // Choruses repeat the rhythmic motif; verses and pre-choruses vary rhythm and contour.
   const id2=opt.varied?pickExcl(Object.keys(CELLS).filter(k=>k!==id),null):id;
   const cell2=CELLS[id2], cont2=opt.varied?contourOf(pick(CONTOURS.filter(c=>c!==type)),cell2.n.length):cont;
   const VARS=['same','down','up','tail'];
   const vari=opt.varied?pick(['down','up','tail']):pick(['same','same','down','up','tail']);
-  const vari3=pickExcl(VARS,vari);                   // 第 3 小节的后半句和第 1 小节不完全一样
+  const vari3=pickExcl(VARS,vari);                   // Vary the second half of bar 3 relative to bar 1.
   const motif=(bar,shift,vr,cA=cell,ctA=cont,cB=cell2,ctB=cont2)=>{
     let last=0;
     [0,8].forEach(h=>{
@@ -1036,19 +1036,19 @@ function newMelody(st,a,ex,opt={}){
     });
     return last;
   };
-  // 回答：从动机的最后一个音一级一级走向目标音，最后一个音拉长
-  // 回答句按音阶一级一级走（包括四级、七级），自然会经过 3-4、7-1 这样的半音；好唱档位仍然只走五声音阶
-  const penta=styleId==='guofeng';   // 国风保持五声音阶，不加半音
+  // Answer by moving stepwise from the motif's final pitch toward a sustained target note.
+  // Stepwise answers may include scale degrees 4/7 and their diatonic semitone steps; the singable setting remains pentatonic.
+  const penta=styleId==='guofeng';   // The guofeng engine branch uses the pentatonic scale.
   const diat=!penta&&C>=.3&&Math.random()<.45+C*.5;
   const answer=(bar,rh,from,target)=>{
     const conv=diat?(x=>x):d2p, back=diat?(x=>x):p2d;
     const fp=conv(from), tp=conv(target), n=rh.length, K=Math.min(n-1,3);
-    // 从目标音的上方或下方一级一级走过去，选离上一个音更近的那一边，避免原地打转
+    // Approach the target from above or below, favoring the direction nearest the preceding pitch.
     const dir=Math.abs(tp+K-fp)<=Math.abs(tp-K-fp)?1:-1;
     const path=[]; let cur=tp+dir*K, extra=n-1-K;
     for(let i=0;i<n-1;i++){
       path.push(cur);
-      if(extra>0&&Math.random()<.6){cur+=dir;extra--;}   // 加一个邻音绕一下
+      if(extra>0&&Math.random()<.6){cur+=dir;extra--;}   // Add a neighboring tone.
       else if(cur!==tp) cur-=dir;
       else cur+=dir;
     }
@@ -1057,11 +1057,11 @@ function newMelody(st,a,ex,opt={}){
   };
   const ansPool=C<.3?ANSWERS.filter(x=>x.length<=3):C>.7?ANSWERS.filter(x=>x.length>=4):ANSWERS;
   const ans1=pick(ansPool), ans2=(!opt.varied&&Math.random()<.6)?ans1:pickExcl(ANSWERS,ans1);
-  // 句子结构：不再只有一种"问答"，按风格从几种常见的流行旋律结构里挑
+  // Select among several common pop melodic forms according to style.
   const form=MEL_FORMS[opt.form]?opt.form:pickForm(styleId,opt.exForm,opt.low);
-  const half=pick(opt.low?[1,4]:[4,8]);           // 半终止：停在 2 或 5 上，像话没说完
+  const half=pick(opt.low?[1,4]:[4,8]);           // Half cadence: end on degree 2 or 5 to leave the phrase open.
   const halfT=snap(half,1)===half?half:(opt.low?4:8);
-  const climb=opt.climb??(opt.low?pick([0,0,1]):pick([0,1,2])); // 抬高，制造高点
+  const climb=opt.climb??(opt.low?pick([0,0,1]):pick([0,1,2])); // Raise the phrase to create a peak.
   const endOf=e3=>opt.end==='half'?(opt.low?pick([1,4]):4):opt.end==='high'?pick([4,8].filter(x=>x<=hi)):(opt.low?0:(e3>=3?7:0));
   if(form==='ABAC'){
     const e1=motif(0,0,vari); answer(1,ans1,e1,halfT);
@@ -1078,13 +1078,13 @@ function newMelody(st,a,ex,opt={}){
     const e1=motif(0,0,vari); motif(1,-3,'tail');
     const e3=motif(2,climb,vari3); answer(3,ans2,e3,endOf(e3));
   } else if(form==='LINE'){
-    // 两小节一口气的长句：先爬到高点再落下；第二遍爬得更高，落回主音
+    // Two-bar continuous phrase: rise to a peak and descend; the second statement peaks higher and resolves.
     const R=[...cell.n.map(([s0,l])=>[s0,l]),...cell2.n.map(([s0,l])=>[8+s0,l]),...ans1.map(([s0,l])=>[16+s0,l])];
     const line=(off,start,peak,end)=>{const n=R.length, top=Math.max(1,Math.round(n*.55));
       R.forEach(([s0,l],i)=>{const t=i<=top?start+(peak-start)*i/top:peak+(end-peak)*(i-top)/(n-1-top||1);const st2=off+s0;put(Math.floor(st2/16),st2%16,l,penta?p2d(d2p(Math.round(t))):Math.round(t),st2%8===0||i===n-1);});};
     const d0=p2d(base), pk=d0+pick([3,4]);
     line(0,d0,pk,halfT); line(32,d0,pk+1,endOf(pk));
-  } else {   // RAP：音高只在两三个音之间，靠切分节奏抓人
+  } else {   // RAP uses a small pitch set with syncopated rhythms.
     const rc=CELLS[pick(['syn','rep','c332','syn'])], rc2=CELLS[pick(['rep','syn','off'])];
     const pat=[[0,0,1,0],[0,1,0,-1],[0,0,0,1]][rand(0,2)];
     for(let bar=0;bar<4;bar++) [0,8].forEach(h=>{
@@ -1093,7 +1093,7 @@ function newMelody(st,a,ex,opt={}){
       c.n.forEach(([s0,l],i)=>put(bar,h+s0,l,p2d(base+(bar===2?1:0)+pat[i%4]),(h+s0)%8===0));
     });
   }
-  // 同一个音连续出现超过三次就太平了：把非强拍上的那几个挪到相邻的音
+  // Vary offbeat pitches within long runs of repeated notes.
   for(let i=3;i<notes.length;i++){
     const d=notes[i].deg;
     if(notes[i-1].deg===d&&notes[i-2].deg===d&&notes[i-3].deg===d&&notes[i].step%8!==0){
@@ -1101,7 +1101,7 @@ function newMelody(st,a,ex,opt={}){
       if(notes[i].deg===d) notes[i].deg=clamp(p2d(d2p(d)-dir));
     }
   }
-  // 花哨：长音前加经过音、强拍提前一个十六分音符（抢拍）；好唱：去掉太碎的音
+  // Complex settings add passing tones and anticipation; singable settings remove short fragments.
   if(C>.62){
     const add=[];
     notes.forEach((n,i)=>{const nx=notes[i+1];if(!nx)return;
@@ -1116,21 +1116,21 @@ function newMelody(st,a,ex,opt={}){
   const nm=MEL_FORMS[form].short+' · '+cell.name;
   const tip=`${cell.tip}句子结构是${MEL_FORMS[form].name}：${MEL_FORMS[form].tip}旋律${CONTOUR_NAME[type]}。`;
   let out=breathe(notes,opt);
-  out=fixClash(out,a,null);                      // 调外和弦上的音跟着升降
+  out=fixClash(out,a,null);                      // Adjust melody accidentals to match chromatic chord tones.
   if(!penta) out=colorMelody(out,a,C);
-  else out=out.map(n=>n.acc?n:{...n,deg:p2d(d2p(n.deg))});   // 国风：所有音收回五声音阶
+  else out=out.map(n=>n.acc?n:{...n,deg:p2d(d2p(n.deg))});   // Map guofeng pitches to the pentatonic scale.
   const nch=out.filter(n=>n.acc||n.ch).length;
   return {id,form,src:'引擎',name:nm,tip,contour:type,notes:out};
 }
 
-// 用户固定过的调、明暗、律动，生成新编曲时继续沿用
+// Preserve user-selected key, brightness, and groove when generating a new arrangement.
 function applyCtl(a,keep){
   const c=state.ctl;
   if(!keep&&c.key!=='auto') a.root=+c.key;
   if(!keep&&c.bright!=null){a.bright=c.bright;a.mode=modeOfBright(c.bright);}
   if(c.swing!=null) a.groove=c.swing;
 }
-/* 避开口水套路：最常见的几组四和弦进行，在和声不是"简单"时换掉其中一个和弦 */
+/* The local engine substitutes a chord in familiar four-chord loops above the simplest richness setting. */
 const CLICHE=new Set(['major:5,3,0,4','major:0,4,5,3','major:0,5,3,4','minor:0,5,2,6','minor:0,6,5,6','minor:0,5,3,4']);
 function twistProg(a){
   a.twist=null;
@@ -1186,7 +1186,7 @@ function explainProg(a){
   return parts.join('');
 }
 
-// 大模型整首方案：讲解副歌的全部和弦（可能是 8 个），只陈述事实，不用本地引擎的模板话术
+// For model plans, explain all chorus chords factually, including eight-chord groups, using the plan's own concept.
 const progSig=pr=>JSON.stringify((pr||[]).map(p=>[p.deg,p.chr||null,!!p.sev]));
 function chorusFull(a){return a.progFull&&a.progFullSig===progSig(a.prog)?a.progFull:null;}
 function explainPlan(a){
@@ -1201,7 +1201,7 @@ function explainPlan(a){
 }
 function explainFor(a){return a.fromSong?(a.concept?a.concept+' ':'')+explainPlan(a):explainProg(a);}
 
-/* ============ 大模型结果 → 编曲（带校验） ============ */
+/* ============ Model output to validated arrangement ============ */
 function cleanLane(s){s=String(s||'').toLowerCase().replace(/[^xo.]/g,'.');return (s+'................').slice(0,16);}
 function fromPlan(p,prev,locked){
   const styleId=STYLES[p.style]?p.style:scoreStyle(String(p.title||''));
@@ -1230,14 +1230,14 @@ function fromPlan(p,prev,locked){
   let mn=(p.melody&&Array.isArray(p.melody.notes)?p.melody.notes:[]).filter(n=>n&&Number.isFinite(+n.step)).map(n=>({step:clampInt(n.step,0,63,0),len:clampInt(n.len,1,16,2),deg:clampInt((n.degree??1)-1,-3,14,0),...(+n.acc===1||+n.acc===-1?{acc:+n.acc}:{}),...(n.vel!=null?{vel:clampInt(n.vel,30,127,90)}:{})})).sort((x,y)=>x.step-y.step);
   mn=mn.filter((n,i)=>i===0||n.step!==mn[i-1].step).slice(0,64);
   mn.forEach((n,i)=>{const next=mn[i+1]?mn[i+1].step:64;n.len=Math.max(1,Math.min(n.len,next-n.step));});
-  // 旋律两条路一起走：大模型直接写的一版，和引擎按大模型选的动机写的几版；打分后留最好的，第二名放进"另一版"
+  // Score the model melody alongside engine variations based on its chosen motif; keep a primary and an alternative.
   const hk=p.hook||{};
   const eng=bestMelody(st,a,null,{id:CELLS[hk.rhythm]?hk.rhythm:undefined,contour:CONTOURS.includes(hk.contour)?hk.contour:undefined,form:MEL_FORMS[hk.form]?hk.form:undefined},2);
   if(hk.why) eng.forEach(m=>{m.tip=String(hk.why).slice(0,80).replace(/[。.！!]?$/,'。')+m.tip;});
   let llm=null;
   if(mn.length>=6){
     let ln=breathe(mn,{pick:.3});
-    ln=fixClash(ln,a,a.prog.map(()=>({deg:-9})));   // 强拍上和和弦只差半音的音挪开
+    ln=fixClash(ln,a,a.prog.map(()=>({deg:-9})));   // Move strong-beat notes that clash by a semitone with a chord tone.
     llm={id:'llm',form:'LLM',src:'大模型',name:String((p.melody&&p.melody.name)||'大模型旋律').slice(0,16),contour:hk.contour||'arch',
       tip:'这段旋律是大模型直接写的，网页把它对齐到调内、避开了和弦冲突，并在句尾留出换气。'+(p.melody&&p.melody.why?String(p.melody.why).slice(0,80):''),notes:ln};
     llm.score=scoreMelody(ln,a);
@@ -1271,7 +1271,7 @@ function toPlan(a){
   };
 }
 
-/* ============ 推导：音高、事件 ============ */
+/* ============ Derivation: pitches and events ============ */
 function voiceAll(infos){
   let prev=null;
   return infos.map(c=>{
@@ -1295,14 +1295,14 @@ function voiceAll(infos){
   });
 }
 const FILLS={
-  roll:{s:[1,.5,.8,1],k:[1,0,0,0]},              // 军鼓一路滚进去
-  flam:{s:[1,0,.9,1],k:[0,.9,0,0]},              // 军鼓和底鼓交替
-  kick:{k:[1,1,1,0],s:[0,0,0,1],h:[0,0,0,0]},     // 连踩三下底鼓再一下军鼓
-  open:{s:[0,0,0,.9],o:[0,0,1,0],h:[1,1,0,0]},   // 开镲甩一下，轻
-  stop:{all0:true}                                // 最后一拍全停，留一个空
+  roll:{s:[1,.5,.8,1],k:[1,0,0,0]},              // Continuous snare roll.
+  flam:{s:[1,0,.9,1],k:[0,.9,0,0]},              // Alternate snare and kick.
+  kick:{k:[1,1,1,0],s:[0,0,0,1],h:[0,0,0,0]},     // Three kicks followed by a snare.
+  open:{s:[0,0,0,.9],o:[0,0,1,0],h:[1,1,0,0]},   // Soft open hi-hat accent.
+  stop:{all0:true}                                // Full stop on the last beat.
 };
 const FILL_KEYS=Object.keys(FILLS);
-/* 能量：不换素材，只让同一套编曲变薄或变厚。0.5 是原样 */
+/* Energy changes the density of the same material; 0.5 preserves the original. */
 function energize(a,e){
   if(e==null||Math.abs(e-.5)<.04) return a;
   const v={...a}, dots='................', mapS=(str,f)=>[...(str||dots)].map(f).join('');
@@ -1347,13 +1347,13 @@ function energize(a,e){
   if(e<.2) v.double=false;
   return v;
 }
-// 低音走向：丰富度够高时，某些和弦改用三音做低音（比如 C/E），让低音一级一级地走
+// At higher richness, selected third-in-bass inversions smooth the bass line.
 const NOINV=new Set(['trap','dnb','house','futurebass','chiptune','reggae','afrobeats','blues','rock','funk','synthwave']);
 function bassLine(a,infos){
   const bpc=infos.map(c=>c.rootPc);
-  if(harmLvl()<=.55||NOINV.has(a.styleId)||a.planned) return bpc;   // 大模型的方案里没要求转位，就不自作主张
+  if(harmLvl()<=.55||NOINV.has(a.styleId)||a.planned) return bpc;   // For model plans, preserve the requested inversion choices.
   const d=(x,y)=>{const k=mod(x-y,12);return Math.min(k,12-k);};
-  // 每 4 小节最多一个转位，第 1 小节永远用根音；挑能让低音走得最顺的那一个
+  // The local engine selects at most one inversion per four bars, keeps bar 1 rooted, and favors the smoothest bass line.
   let best=-1,gain=1.5;
   for(let b=1;b<4;b++){
     const c=infos[b]; if(c.chr) continue;
@@ -1369,7 +1369,7 @@ function derive(a){
   {const cp=colorize(a.prog,a); if(cp!==a.prog){const ref=a.prog;a={...a,prog:cp};if(a.melody&&a.melody.notes.length)a={...a,melody:{...a.melody,notes:fixClash(a.melody.notes,a,ref)}};}}
   let infos=[0,1,2,3].map(i=>chordInfo(a,i));
   const rich=harmLvl()>.72&&!(STYLES[a.styleId]||{}).domAll;
-  // 丰富度高：四音以上的和弦去掉根音（根音交给贝斯），就是爵士、新灵魂乐里常见的无根音排列
+  // At high richness, omit roots from extended chord voicings and leave them to the bass, as in jazz/neo-soul voicings.
   const voic=voiceAll(rich?infos.map(c=>c.pcs.length>=4?{...c,pcs:c.pcs.slice(1)}:c):infos);
   const bpc=bassLine(a,infos);
   infos=infos.map((c,b)=>bpc[b]===c.rootPc?c:{...c,name:c.name+'/'+c.sp[bpc[b]],slash:bpc[b]});
@@ -1382,7 +1382,7 @@ function derive(a){
     for(let bar=0;bar<4;bar++) for(let s=0;s<16;s++){
       let v=vel(str[s]); const step=bar*16+s;
       if(a.drums.fill&&bar===3&&s>=12){
-        // 过门：每次段落交接用的不一样
+        // Vary fills between section transitions.
         const F=FILLS[a.drums.fill]||FILLS.roll, sn=L==='s'||(L==='c'&&!a.drums.lanes.s.includes('x'));
         if(F.all0) v=0;
         else if(sn&&F.s) v=F.s[s-12];
@@ -1403,7 +1403,7 @@ function derive(a){
   for(let bar=0;bar<4;bar++){
     const m=bassRoot(bar);
     let bp=a.bass.pat;
-    // 半音低音：下一个和弦的低音离这里只差一个全音时，中间塞一个半音经过音；循环回头时从半音下面走进去
+    // Use a chromatic bass passing tone between roots a whole tone apart, or approach the loop start from a semitone below.
     const chroma=jazzy||['jazz','bossa','funk'].includes(a.styleId)||(harmLvl()>.72&&!['trap','dnb','house','futurebass','chiptune','reggae','guofeng'].includes(a.styleId));
     const nxB=bassRoot((bar+1)%4); let dif=nxB-m; while(dif>6)dif-=12; while(dif<-6)dif+=12;
     if(bar===3&&a.bass.approach&&bp.length){
@@ -1417,7 +1417,7 @@ function derive(a){
     const third=mod(infos[bar].pcs[1]-infos[bar].rootPc,12);
     for(const [s0,l,r,apm] of bp){
       let midi;
-      if(r==='A'){ if(apm!=null) midi=apm; else { let nx=bassRoot((bar+1)%4)-1; while(nx<m-6) nx+=12; while(nx>m+7) nx-=12; midi=nx; } }   // 从半音下面走进下一个和弦
+      if(r==='A'){ if(apm!=null) midi=apm; else { let nx=bassRoot((bar+1)%4)-1; while(nx<m-6) nx+=12; while(nx>m+7) nx-=12; midi=nx; } }   // Approach the next chord from a semitone below.
       else if(r==='R'||r==='O'||bpc[bar]===infos[bar].rootPc) midi=(r==='R'||r==='O'?m:chordRoot(bar))+({'5':7,'O':12,'3':third,'6':9,'b7':10}[r]||0);
       else midi=m;
       const step=bar*16+s0;
@@ -1432,12 +1432,12 @@ function derive(a){
       if(f) ev.chords[30].push([voic[2],2+f[1],.95]), voic[2].forEach(midi=>roll.chords.push({step:30,len:2+f[1],midi}));
     }
     const gr=40+mod(infos[bar].rootPc-4,12), gth=mod(infos[bar].pcs[1]-infos[bar].rootPc,12);
-    const gtr=[gr,gr+7,gr+12,gr+12+gth,gr+19];               // 吉他开放和弦：六根弦从低到高
+    const gtr=[gr,gr+7,gr+12,gr+12+gth,gr+19];               // Open guitar chord voicings: six strings, low to high.
     for(const h of hits){
       const [s0,l,f]=h; const step=bar*16+s0;
       let ms, dir=null;
-      if(f==='D'||f==='U'){dir=f;ms=f==='D'?gtr:gtr.slice(1).reverse();}   // 下扫从低音弦开始，上扫只扫高音几根弦
-      else if(f==='P') ms=[gr,gr+7,gr+12];                                   // 强力和弦：根音 + 五音 + 八度
+      if(f==='D'||f==='U'){dir=f;ms=f==='D'?gtr:gtr.slice(1).reverse();}   // Downstrokes begin on low strings; upstrokes use the upper strings.
+      else if(f==='P') ms=[gr,gr+7,gr+12];                                   // Power chord: root, fifth, and octave.
       else ms=h.length>2?[f<v.length?v[f]:v[f-v.length]+12]:v;
       ev.chords[step].push([ms,l,dir==='U'?.72:s0===0?1:.85,dir]); ms.forEach(midi=>roll.chords.push({step,len:l,midi}));
     }
@@ -1446,7 +1446,7 @@ function derive(a){
       ev.arp[step].push([midi,l]); roll.arp.push({step,len:l,midi});
     }
     if(a.pad&&a.counter){
-      // 最后一遍副歌：铺底换成一条对位旋律，走和弦的三音、七音（导音线），和主旋律一高一低地呼应
+      // For the final chorus, replace the pad with a countermelody using thirds/sevenths in a contrasting register.
       const cands=[infos[bar].pcs[1],infos[bar].pcs[3]??infos[bar].pcs[2]];
       let best=null,bd=99;
       for(const pc of cands) for(let m2=62;m2<=76;m2++) if(mod(m2,12)===pc){const dd=Math.abs(m2-cm);if(dd<bd){bd=dd;best=m2;}}
@@ -1470,18 +1470,18 @@ function derive(a){
   });
   const sc=SCALES[a.mode];
   let tb=a.root<=6?60+a.root:48+a.root; if(a.sound.lead==='bell') tb+=12;
-  // 音区：按副歌旋律的最高音定整首的八度，保证最高不超过 C6 附近，各段之间不会忽高忽低
+  // Derive the song's octave from the chorus peak, keeping it near or below C6 with consistent section registers.
   {const seed=a.seedNotes||a.melody.notes; if(seed.length){const top=Math.max(...seed.map(n=>sc[mod(n.deg,7)]+12*Math.floor(n.deg/7)+(n.acc||0)));while(tb+top>84)tb-=12;}}
   const mel=a.melody.notes;
   mel.forEach((n,i)=>{
     const midi=tb+sc[mod(n.deg,7)]+12*Math.floor(n.deg/7)+(n.acc||0);
-    // 力度：句子中间最强，拍头稍重，弱起和句尾轻
+    // Velocity peaks within phrases; beat starts are stronger, pickups and phrase endings softer.
     let k=n.vel?n.vel/100:.8+(n.step%4===0?.1:0)+Math.sin(Math.PI*((n.step%32)/32))*.14;
     if(n.pk&&!n.vel) k=.6;
     const nx=mel[i+1], gate=nx&&nx.step===n.step+n.len?1.02:(n.len<=1?.7:.86);
     ev.melody[n.step].push([midi,n.len,k,gate]); roll.melody.push({step:n.step,len:n.len,midi,k});
     if(a.double){const dm=midi+12<=91?midi+12:midi-12;ev.melody[n.step].push([dm,n.len,k*.4,gate]);roll.melody.push({step:n.step,len:n.len,midi:dm,k:k*.4});}
-    if(a.harmony&&n.len>=2){   // 最后一遍副歌：加一条三度和声（调内往上数两级），像和声歌手
+    if(a.harmony&&n.len>=2){   // Add a diatonic third-above harmony in the final chorus.
       const hd=n.deg+2, hm=tb+sc[mod(hd,7)]+12*Math.floor(hd/7);
       if(hm<=90&&!(n.acc)){ev.melody[n.step].push([hm,n.len,k*.42,gate]);roll.melody.push({step:n.step,len:n.len,midi:hm,k:k*.42});}
     }
@@ -1489,7 +1489,7 @@ function derive(a){
   return {infos,voic,ev,roll,bpc};
 }
 
-/* ============ 歌曲结构 ============ */
+/* ============ Song structure ============ */
 const SECTIONS={
   intro:{name:'前奏',r:{drums:'off',bass:'off',chords:'pad',melody:'thin',arp:'full',pad:'full',perc:'off'},desc:'只留长音和弦和几个旋律音，整体声音从闷到亮慢慢打开（滤波扫频），先把氛围铺出来。'},
   verse:{name:'主歌',r:{drums:'light',bass:'long',chords:'full',melody:'verse',arp:'off',pad:'off',perc:'light',prog:'verse'},desc:'鼓变轻、贝斯拉成长音，旋律换成更低、更平的一版，而且 8 小节里前后两句不一样：前一句停在没说完的音上，后一句换个节奏接着讲。和弦也换成主歌自己的一组，前一句收在属和弦上。主歌负责讲故事，要给歌词留出空间。'},
@@ -1510,7 +1510,7 @@ const LEVEL={
   perc:{off:['无',0],light:['轻',.45],full:['完整',1]}
 };
 const BRIDGE={major:[[3,4,2,5],[5,3,4,4],[3,0,4,4],[5,2,3,4],['bVI','bVII',3,4],[3,'iv',0,4],[5,'bVI','bVII',4]],minor:[[5,6,3,4],[3,5,6,6],[5,2,6,4],[3,4,5,6],[5,6,2,'V'],[3,'IV',5,'V']]};
-// 主歌、预副歌各有自己的和弦进行
+// Verses and pre-choruses use their own progressions.
 const VERSE_P={major:[[0,3,0,4],[0,5,3,4],[5,3,0,4],[0,2,3,4],[0,4,5,3],[0,3,5,4],[5,2,3,0],[0,1,3,4]],minor:[[0,5,2,6],[0,3,6,5],[0,6,5,6],[0,3,0,4],[5,6,0,0],[0,2,5,6],[0,3,5,6]]};
 const PRE_P={major:[[3,4,5,4],[3,4,3,4],[1,3,4,4],[5,3,1,4],[3,5,1,4],[1,2,3,4]],minor:[[5,6,3,4],[3,4,5,4],[5,3,6,4],[3,5,6,4],[5,6,2,4]]};
 let secId=0;
@@ -1518,37 +1518,36 @@ const sec=(type,bars)=>({id:++secId,type,bars});
 function defaultSong(){
   return [sec('intro',4),sec('verse',8),sec('pre',4),sec('chorus',8),sec('verse',8),sec('pre',4),sec('chorus',8),sec('bridge',4),sec('chorus',8),sec('outro',4)];
 }
-/* 按风格挑一种歌曲结构，再随机做些小改动，所以每次生成的长度和段落都不一样。
-   i=前奏 v=主歌 p=预副歌 c=副歌 b=桥段 o=尾奏，数字是小节数 */
+/* Choose a style-based song form, then vary it. i=intro, v=verse, p=pre, c=chorus, b=bridge, o=outro; numbers are bar counts. */
 const FORMS={
   pop:[
-    'i4 v8 p4 c8 v8 p4 c8 b4 c8 o4',          // 标准流行
-    'i4 v8 c8 v8 c8 b8 c8 c8 o4',             // 没有预副歌，副歌连唱两遍收尾
-    'c8 v8 p4 c8 v8 p4 c8 b4 c8 o4',          // 副歌开门
-    'i4 v8 p4 c8 v4 p4 c8 b8 c8 o8',          // 第二段主歌减半
-    'i8 v8 p4 c8 b4 c8 c8 o4',                // 只有一段主歌，后面副歌连唱
-    'i4 v8 c8 v8 p4 c8 o4'                    // 短版
+    'i4 v8 p4 c8 v8 p4 c8 b4 c8 o4',          // Standard pop form.
+    'i4 v8 c8 v8 c8 b8 c8 c8 o4',             // Direct verse-to-chorus form with a double chorus ending.
+    'c8 v8 p4 c8 v8 p4 c8 b4 c8 o4',          // Chorus opening.
+    'i4 v8 p4 c8 v4 p4 c8 b8 c8 o8',          // Half-length second verse.
+    'i8 v8 p4 c8 b4 c8 c8 o4',                // One verse followed by repeated choruses.
+    'i4 v8 c8 v8 p4 c8 o4'                    // Short form.
   ],
   edm:[
-    'i8 v8 p8 c8 v8 p4 c8 o8',                // 铺垫 → 蓄力 → Drop
-    'i8 p8 c8 b8 p8 c8 c8 o8',                // 两次 Drop，中间一段 Break
+    'i8 v8 p8 c8 v8 p4 c8 o8',                // Setup, buildup, and drop.
+    'i8 p8 c8 b8 p8 c8 c8 o8',                // Two drops separated by a break.
     'i4 v8 p4 c8 b8 p4 c8 o4',
-    'i8 v8 p8 c8 c8 b8 p8 c8 o8'              // 长版，适合 DJ 混接
+    'i8 v8 p8 c8 c8 b8 p8 c8 o8'              // Extended form for DJ mixing.
   ],
   hook:[
-    'i4 c8 v8 c8 v8 c8 o4',                   // 说唱：Hook 开场，主歌和 Hook 轮流
+    'i4 c8 v8 c8 v8 c8 o4',                   // Rap: hook opening, then alternating verses and hooks.
     'i4 v8 c8 v8 c8 b4 c8 o4',
     'c8 v8 c8 v8 b8 c8 o4',
     'i8 v8 p4 c8 v8 c8 o8'
   ],
   inst:[
-    'i4 c8 v8 b8 c8 o4',                      // 爵士：主题 → 即兴 → 回到主题
+    'i4 c8 v8 b8 c8 o4',                      // Jazz: theme, improvisation, and return to the theme.
     'i4 c8 v8 b4 c8 v8 c8 o4',
     'i8 v8 c8 b8 v8 c8 o8',
     'i4 v8 c8 v8 c8 b8 c8 o4'
   ],
   wide:[
-    'i8 v8 c8 b8 c8 o8',                      // 氛围 / 配乐：段落长、变化慢
+    'i8 v8 c8 b8 c8 o8',                      // Ambient/scoring: longer sections and gradual changes.
     'i8 v8 b8 c8 v8 c8 o8',
     'i8 c8 b8 v8 c8 o8',
     'i4 v8 p8 c8 b8 c8 o8'
@@ -1566,19 +1565,19 @@ function songForm(styleId,bpm){
   if(pool.length>1) for(let k=0;k<5&&tpl===lastForm;k++) tpl=pick(pool);
   lastForm=tpl;
   let s=tpl.split(' ').map(t=>sec(SEC_KEY[t[0]],+t.slice(1)));
-  // 小改动：前奏和尾奏长短随机，偶尔去掉第二个预副歌、把桥段拉长或缩短
+  // Vary intro/outro lengths, occasionally omit the second pre-chorus, and adjust bridge length.
   if(s[0].type==='intro'&&Math.random()<.3) s[0].bars=s[0].bars===4?8:4;
   const o=s[s.length-1]; if(o.type==='outro'&&Math.random()<.3) o.bars=o.bars===4?8:4;
   const pres=s.map((x,i)=>x.type==='pre'?i:-1).filter(i=>i>=0);
   if(pres.length>=2&&Math.random()<.25) s.splice(pres[1],1);
   const bi=s.findIndex(x=>x.type==='bridge'); if(bi>=0&&Math.random()<.3) s[bi].bars=s[bi].bars===4?8:4;
-  // 流行、舞曲、说唱：有一定概率在副歌后面接一段"记忆点"（后副歌）
+  // Pop, dance, and rap may include a post-chorus hook section.
   const fam=FORM_OF[styleId]||'pop';
   if(['pop','edm','hook'].includes(fam)&&Math.random()<(fam==='edm'?.55:.4)){
     const cs=s.map((x,i)=>x.type==='chorus'?i:-1).filter(i=>i>=0);
     const at=cs.find(i=>s[i+1]&&s[i+1].type!=='chorus'); if(at!=null) s.splice(at+1,0,sec('post',4));
   }
-  // 时长：流行单曲一般 2 分 40 秒到 3 分 30 秒。按速度把整首拉长或压短
+  // Target roughly 2:40–3:30 for a pop single by adjusting bar count to tempo.
   if(bpm){
     const dur=()=>s.reduce((n,x)=>n+x.bars,0)*240/bpm, lo=150+Math.random()*20, hi=205+Math.random()*15;
     for(let k=0;k<14&&dur()<lo;k++){
@@ -1587,7 +1586,7 @@ function songForm(styleId,bpm){
       if(!s.some(x=>x.type==='post')&&['pop','edm','hook'].includes(fam)&&fc>=0&&s[fc+1]&&s[fc+1].type!=='chorus'){s.splice(fc+1,0,sec('post',4));continue;}
       const four=s.findIndex((x,i)=>x.bars===4&&['verse','bridge'].includes(x.type));
       if(four>=0){s[four].bars=8;continue;}
-      // 再加一轮"主歌 → （预副歌）→ 副歌"，放在桥段（或最后一遍副歌）前面
+      // Insert another verse/pre-chorus/chorus cycle before the bridge or final chorus.
       const nV=s.filter(x=>x.type==='verse').length, bi=s.findIndex(x=>x.type==='bridge');
       if(nV<3&&ci>=0){const at=bi>0&&s[bi-1].type!=='verse'?bi:ci+1; const hasPre=s.some(x=>x.type==='pre'); s.splice(at,0,...[sec('verse',8)].concat(hasPre?[sec('pre',4)]:[],[sec('chorus',8)]));continue;}
       if(bi<0&&ci>0){s.splice(ci,0,sec('bridge',8));continue;}
@@ -1607,27 +1606,27 @@ function songForm(styleId,bpm){
   return s;
 }
 const songBars=s=>s.reduce((n,x)=>n+x.bars,0);
-// 给整首歌配和声：主歌、预副歌、副歌后半句、桥段都和种子副歌不一样
+// Give verses, pre-choruses, chorus second halves, and bridges harmony distinct from the seed chorus.
 function harmonize(a){
   const st=STYLES[a.styleId], m=a.mode, sev=a.prog[0].sev, blues=!!st.domAll, H=harmLvl();
   const seed=progKey(a.prog), used=new Set([seed]);
   const take=(pool,f=()=>true)=>{const o=pool.filter(x=>!used.has(x.join(','))&&f(x)&&(blues||true));const r=pick(o.length?o:pool);used.add(r.join(','));return r;};
-  // 主歌：一半用本风格的进行，一半用通用主歌进行；前一句收在 V（半终止），后一句保持原样
+  // Verse harmony combines style-specific and general progressions; the first phrase ends on V.
   const vPool=Math.random()<.5?st.progs.concat(VERSE_P[m]):VERSE_P[m];
   const vb=take(vPool);
   let vA=vb.slice(), vB=vb.slice();
   if(vA[3]!==4&&vA[2]!==4) vA[3]=4;
   if(vA.join()===vB.join()) vB[3]=pick([0,3,5].filter(x=>x!==vB[2]&&x!==vB[3]).concat([m==='major'?1:2]));
-  // 预副歌：越走越紧，最后一小节停在 V；大调常在前面加一个 V/V，小调把 V 换成大三和弦（和声小调）
+  // Build pre-chorus tension toward V; major may use V/V, while minor may use a major V from harmonic minor.
   let pre=take(PRE_P[m]).slice();
   if(!blues){
     if(m==='major'&&Math.random()<H*.9&&pre[3]===4) pre[2]='VofV';
     if(m==='minor'&&Math.random()<.2+H*.7) pre[3]='V';
   }
-  // 桥段
+  // Bridge.
   const bOpts=BRIDGE[m].filter(p=>(!(blues||H<.4)||p.every(x=>typeof x==='number'))&&!used.has(progKey(toProg(m,p,sev)))&&progKey(toProg(m,p,sev))!==progKey(toProg(m,vA,sev))&&p[0]!==a.prog[0].deg&&p[0]!==vb[0]);
   const bridge=toProg(m,pick(bOpts.length?bOpts:BRIDGE[m].filter(p=>p.every(x=>typeof x==='number'))),sev);
-  // 副歌后半句：换 1 个和弦（代理和弦或副属和弦），让 8 小节副歌不是同样的 4 小节唱两遍
+  // Vary one chord in the chorus's second half with a substitute or secondary dominant.
   const cB=a.prog.map(x=>({...x})), cands=[];
   for(let k=1;k<4;k++){
     const d=cB[k].deg, nx=k<3?cB[k+1].deg:null;
@@ -1646,10 +1645,10 @@ function harmonize(a){
   if(good.length){const [k,x]=pick(good);cB[k]=typeof x==='string'?chrChord(m,x,sev):{deg:x,sev};}
   return {vProg:[toProg(m,vA,sev),toProg(m,vB,sev)],preProg:toProg(m,pre,sev),chorusB:progKey(cB)===seed?null:cB,bridge};
 }
-// 旋律碰到换过的和弦时，把和和弦音只差半音的重音挪到最近的和弦音上
+// Move accented melody notes that clash by a semitone with a changed chord to the nearest chord tone.
 function fixClash(notes,v,ref){
   const sc=SCALES[v.mode], infos=[0,1,2,3].map(i=>chordInfo(v,i));
-  // ref 为 null：只处理调外和弦所在的小节
+  // A null ref limits processing to bars with chromatic chords.
   const changed=[0,1,2,3].map(i=>ref?progKey([v.prog[i]])!==progKey([ref[i]]):!!v.prog[i].chr);
   const pcOf=(d,acc=0)=>mod(v.root+sc[mod(d,7)]+acc,12);
   return notes.map(n=>{
@@ -1657,19 +1656,19 @@ function fixClash(notes,v,ref){
     if(!changed[bar]) return n;
     const pc=pcOf(n.deg,n.acc), clash=!I.pcs.includes(pc)&&I.pcs.some(c=>mod(pc-c,12)===1||mod(c-pc,12)===1);
     if(!clash||(!I.chr&&n.step%4!==0&&n.len<4)) return n;
-    // 调外和弦：旋律跟着升降半音，唱出这个和弦的"特征音"（比如 V/V 里的升四级、iv 里的降六级）
+    // Align melody accidentals with characteristic chord tones, such as raised 4 in V/V or lowered 6 in iv.
     for(const r of [1,-1,2,-2,3,-3]) if(I.pcs.includes(pcOf(n.deg+r))) return {...n,deg:n.deg+r,acc:0};
     return n;
   });
 }
-/* 半音：旋律里加半音倚音、经过音和导音。强拍上的和弦音，前面用比它低（或高）半音的音"滑"进去 */
+/* Chromatic melodic approach, passing, and leading tones around accented chord tones. */
 function colorMelody(notes,a,C){
   const sc=SCALES[a.mode], infos=[0,1,2,3].map(i=>chordInfo(a,i));
   const rel=(d,acc=0)=>mod(sc[mod(d,7)]+acc,12);
   let ns=notes.map(n=>({...n}));
-  // 小调里遇到大三的 V（和声小调）：七级升半音变成导音，往主音"拉"
+  // A major V in minor raises degree 7 to create a leading tone toward the tonic.
   ns.forEach(n=>{const I=infos[Math.floor(n.step/16)%4];if(a.mode==='minor'&&mod(n.deg,7)===6&&!n.acc&&I.pcs.includes(mod(a.root+11,12)))n.acc=1;});
-  const max=0; let used=0;   // 不再主动往旋律里塞半音倚音，只保留小调遇到大三 V 时的导音
+  const max=0; let used=0;   // Retain harmonic-minor leading tones on major V; the former extra chromatic-approach step is inactive.
   const P=.15+.55*C, add=[];
   for(let i=1;i<ns.length&&used<max;i++){
     const n=ns[i], pv=ns[i-1];
@@ -1689,8 +1688,8 @@ function colorMelody(notes,a,C){
 }
 function songExtra(a){
   const st=STYLES[a.styleId], H=harmonize(a);
-  // 主歌 8 小节：前 4 小节提出动机、停在没说完的音上；后 4 小节换一个动机继续讲，最后落回主音
-  // 主歌写三版，挑和副歌反差最大、自己又好听的那版：音区更低、节奏和副歌不一样
+  // An eight-bar verse presents an open-ended motif, then varies it and resolves to the tonic.
+  // Choose among three verse melodies for contrast with the chorus in register and rhythm.
   const midiOf=n=>SCALES[a.mode][mod(n.deg,7)]+12*Math.floor(n.deg/7)+(n.acc||0);
   const avg=ns=>ns.reduce((x,n)=>x+midiOf(n),0)/Math.max(1,ns.length);
   const rhy=ns=>new Set(ns.filter(n=>n.step<16).map(n=>n.step));
@@ -1703,9 +1702,9 @@ function songExtra(a){
     if(sc>best){best=sc;vA=c;}
   }
   const vB=newMelody(st,{...a,prog:H.vProg[1]},vA.id,{low:true,varied:true,end:'tonic',contour:pick(CONTOURS.filter(c=>c!==vA.contour)),form:Math.random()<.5?vA.form:undefined,exForm:a.melody.form});
-  // 预副歌：从中音区一路往上爬，停在属音上，把情绪推给副歌
+  // Pre-chorus melody rises from the middle register and ends on the dominant.
   const pre=newMelody(st,{...a,prog:H.preProg},vB.id,{varied:true,end:'high',climb:2,base:pick([2,4]),contour:pick(['arch','leap','repeat'])});
-  // 主歌、桥段用这种风格的另一套鼓型
+  // Use an alternate drum pattern for verses and bridges.
   const oth=st.drums.filter(d=>d!==a.drums.id&&DRUMS[d]); let vDrums=null;
   if(oth.length&&a.drums.id!=='llm'){const d=DRUMS[pick(oth)];vDrums={};for(const L of LANES)vDrums[L]=d[L]||'................';}
   return {verse:[vA.notes,vB.notes],pre:pre.notes,vDrums,...H};
@@ -1714,7 +1713,7 @@ function variant(a,r,extra,last,blk=0,o={}){
   const dots='................', ln={...a.drums.lanes};
   const v={...a,double:false,seedNotes:a.melody.notes,drums:{...a.drums,lanes:ln,fill:false,build:false}};
   const fl=last?(o.fill||'roll'):false;
-  // 主歌、桥段换鼓型：用这种风格的另一套鼓点，和副歌的律动拉开
+  // Select another style-specific drum pattern to contrast with the chorus groove.
   const alt=extra.vDrums&&(r.drums==='light'||r.drums==='switch')?extra.vDrums:null;
   if(alt) Object.assign(ln,alt);
   switch(r.drums){
@@ -1726,7 +1725,7 @@ function variant(a,r,extra,last,blk=0,o={}){
       ln.s=dots; ln.c=dots; ln.o=dots; ln.h=(src.h||dots).replace(/x/g,'o'); v.drums.extra=[];
       if(last&&o.fill) v.drums.fill='open'; break; }
     case 'switch': v.drums.extra=[]; v.drums.fill=fl; break;
-    case 'half': {   // 半速：军鼓只落在第 3 拍，底鼓只留 1 拍和一个切分，速度不变却像慢了一半
+    case 'half': {   // Half-time keeps the tempo but places the snare on beat 3, with a sparse kick pattern.
       const sn=(a.drums.lanes.s||'').includes('x')?'s':'c';
       ln.k=(a.drums.lanes.k||'').replace(/x/g,'').length?'x.........x.....':dots;
       ln.s=dots; ln.c=dots; ln[sn]='........x.......'; ln.o=dots;
@@ -1746,7 +1745,7 @@ function variant(a,r,extra,last,blk=0,o={}){
   if(r.melody==='pre') v.melody={...a.melody,notes:extra.pre||(Array.isArray(extra.verse[0])?extra.verse[1]:extra.verse)};
   if(r.melody==='double') v.double=true;
   if(r.melody==='tag'){const N=a.melody.notes.filter(n=>n.step>=32);v.melody={...a.melody,notes:N.map(n=>({...n,step:n.step-32})).concat(N.map(n=>({...n})))};}
-  if(r.melody==='chop'){   // 记忆点：取副歌第一小节的动机，切成短音反复打，最后一小节用副歌的结尾收住
+  if(r.melody==='chop'){   // Build the post-chorus from short repetitions of the chorus opening motif, ending with its closing phrase.
     const N=a.melody.notes, m1=N.filter(n=>n.step<16), end=N.filter(n=>n.step>=48);
     const out=[]; for(let bar=0;bar<4;bar++){const src=bar===3&&end.length?end.map(n=>({...n,step:n.step-48})):m1;
       src.forEach(n=>{if(bar===1&&n.step>=10)return;out.push({step:bar*16+n.step,len:bar===3?n.len:Math.min(n.len,2),deg:n.deg+(bar===2&&!n.acc?1:0),acc:n.acc||0,vel:bar===3?undefined:92});});}
@@ -1769,7 +1768,7 @@ function variant(a,r,extra,last,blk=0,o={}){
   if(o.harmony&&v.melody.notes.length) v.harmony=true;
   return v;
 }
-// 整体移调：把一段里所有有音高的轨道都升 tr 个半音
+// Transpose all pitched tracks in a section by tr semitones.
 function transposeD(D,tr,a){
   const up=m=>m+tr;
   for(const L of ['bass','melody','arp']) D.ev[L].forEach(list=>list.forEach(e=>{e[0]=up(e[0]);}));
@@ -1785,7 +1784,7 @@ function deriveSong(a,sections,extra){
   for(const L of LAYERS){ev[L]=[];roll[L]=[];}
   let bar0=0;
   const planned=sections.some(x=>x.plan);
-  // 升调：大模型方案里标了 key_up 的那一段；否则是最后一遍副歌
+  // Use the model's key_up section, or the final chorus for the local-engine workflow.
   const kuPlan=sections.findIndex(x=>x.plan&&(x.plan.moves||[]).includes('key_up'));
   const lc=!state.keyUp?-1:kuPlan>=0?kuPlan:(!planned&&sections.filter(x=>x.type==='chorus').length>=2?lastChorus(sections):-1);
   const lastC=lastChorus(sections), nChorus=sections.filter(x=>x.type==='chorus').length, seen={};
@@ -1797,15 +1796,15 @@ function deriveSong(a,sections,extra){
     let E;
     if(P) E=Math.max(0,Math.min(1,(P.energy??.6)+(G-.5)+(s.energy||0)));
     else {
-      // 每段的能量 = 全局能量 + 这一段第几次出现（第二段主歌、后面的副歌自动更满一点）+ 手动调的偏移
+      // Section energy combines global energy, occurrence-based growth, and the user's per-section offset.
       const auto=(['verse','chorus','pre'].includes(s.type)?.06*(seen[s.type]-1):0)+(si===lastC&&nChorus>1?.06:0);
       E=Math.max(0,Math.min(1,G+auto+(s.energy||0)));
     }
-    const fillT=FILL_KEYS[mod((s.id||si)*7+si,FILL_KEYS.length-1)];   // 每次交接的过门不一样（stop 只在方案里用）
+    const fillT=FILL_KEYS[mod((s.id||si)*7+si,FILL_KEYS.length-1)];   // Vary transition fills; stop is reserved for explicit plan moves.
     for(let b=0;b<blocks;b++){
       const V=P?variantPlan(a,s,b,blocks,extra,{energy:E}):variant(a,SECTIONS[s.type].r,extra,b===blocks-1,b,{energy:E,counter:si===lastC&&nChorus>1,fill:fillT});
       let D=derive(V), off=(bar0+b*4)*16;
-      if(lc>=0&&si>=lc) D=transposeD(D,2,V);   // 升调段（和之后的段落）整体升一个全音
+      if(lc>=0&&si>=lc) D=transposeD(D,2,V);   // Raise the key-up section and subsequent sections by a whole tone.
       for(const L of LAYERS){
         for(let i=0;i<64;i++) ev[L][off+i]=D.ev[L][i];
         for(const n of D.roll[L]) roll[L].push({...n,step:n.step+off});
@@ -1829,7 +1828,7 @@ function deriveSong(a,sections,extra){
   const gaps=[];
   sections.forEach((s,si)=>{
     const st=starts[si]*16, end=st+s.bars*16, mv=s.plan?(s.plan.moves||[]):null;
-    // 转场音效
+    // Transition effects.
     if(si>0&&['verse','chorus','bridge','outro','post'].includes(s.type)&&!(mv&&mv.includes('drop_first_bar'))) fx(st,s.type==='post'?'crash':'crash',32);
     if(s.type==='chorus'&&si>0) fx(st-16,'riser',16);
     if(s.type==='bridge') fx(st,'down',16);
@@ -1839,8 +1838,8 @@ function deriveSong(a,sections,extra){
       if(mv.includes('full_stop')){clear(end-8,end,['drums','bass','chords','arp','pad','perc','melody'],true);gaps.push(si);}
       else if(mv.includes('stop')){clear(end-4,end,['drums','bass','chords','arp','pad','perc'],true);gaps.push(si);}
     } else {
-      if(s.type==='intro'&&si===0) ev.fx[st].push(['sweep',s.bars*16]);   // 前奏：整体从闷到亮慢慢打开（滤波扫频）
-      // 进副歌前"抽空"：预副歌最后一拍（主歌、桥段是最后半拍）除了旋律和音效全部停下
+      if(s.type==='intro'&&si===0) ev.fx[st].push(['sweep',s.bars*16]);   // Intro filter sweep gradually opens the sound from dark to bright.
+      // Before a chorus, briefly mute all but melody/effects: one beat after a pre-chorus, half a beat after verse/bridge.
       const nx=sections[si+1];
       if(nx&&nx.type==='chorus'&&['pre','verse','bridge'].includes(s.type)){clear(end-(s.type==='pre'?4:2),end,['drums','bass','chords','arp','pad','perc'],true);gaps.push(si);}
     }
@@ -1848,8 +1847,8 @@ function deriveSong(a,sections,extra){
   return {ev,roll,map,starts,markers,bars:bar0,keyUpAt:lc,gaps};
 }
 const secName=s=>(s.plan&&s.plan.label)||SECTIONS[s.type].name;
-/* ============ 执行大模型的整首方案 ============ */
-// 按方案演奏一段：和声、律动、出场乐器、旋律、手法都来自大模型，缺的部分用引擎补
+/* ============ Execute the model's full-song plan ============ */
+// Perform plan harmony, grooves, instruments, melody, and moves, with engine fallbacks for missing material.
 function variantPlan(a,s,blk,blocks,extra,o){
   const P=s.plan, last=blk===blocks-1, dots='................', mv=P.moves||[];
   const v={...a,double:false,seedNotes:a.melody.notes,energy:o.energy,planned:true};
@@ -1867,7 +1866,7 @@ function variantPlan(a,s,blk,blocks,extra,o){
   }
   if(last&&mv.includes('fill')) v.drums.fill=FILL_KEYS[mod((s.id||0)*3+blk,4)];
   if(last&&mv.includes('build')) v.drums.build=true;
-  // 旋律
+  // Melody.
   const mk=P.melody, pm=extra.planMel&&extra.planMel[mk];
   let notes=null;
   if(mk&&mk!=='none'){
@@ -1879,7 +1878,7 @@ function variantPlan(a,s,blk,blocks,extra,o){
   v.melody={...a.melody,notes:notes||[]};
   if(mv.includes('double_octave')) v.double=true;
   if(mv.includes('harmony_vocal')&&v.melody.notes.length) v.harmony=true;
-  // 出场乐器：没在 play 里的层全部静音
+  // Mute layers absent from the section's play list.
   const play=new Set(P.play||[]);
   if(!play.has('drums')){v.drums.lanes=Object.fromEntries(LANES.map(L=>[L,dots]));v.drums.extra=[];v.drums.fill=false;v.drums.build=false;}
   if(!play.has('bass')) v.bass={...v.bass,pat:[]};
@@ -1891,13 +1890,13 @@ function variantPlan(a,s,blk,blocks,extra,o){
   if(!play.has('perc')){const pl={};for(const L of PERC_LANES)pl[L]=dots;v.perc={...a.perc,lanes:pl};}
   return v;
 }
-// 大模型方案里的简写 → 引擎的数据
+// Convert model shorthand into engine data.
 const QUAL={'':null,m:[0,3,7],maj:[0,4,7],M:[0,4,7],maj7:[0,4,7,11],M7:[0,4,7,11],m7:[0,3,7,10],'7':[0,4,7,10],'9':[0,4,7,10,14],sus4:[0,5,7],sus2:[0,2,7],'7sus4':[0,5,7,10],dim:[0,3,6],dim7:[0,3,6,9],m7b5:[0,3,6,10],add9:[0,4,7,14],madd9:[0,3,7,14],m9:[0,3,7,10,14],maj9:[0,4,7,11,14],'6':[0,4,7,9],m6:[0,3,7,9],aug:[0,4,8]};
 const QNAME={m:'m',maj:'',M:'',maj7:'maj7',M7:'maj7',m7:'m7','7':'7','9':'9',sus4:'sus4',sus2:'sus2','7sus4':'7sus4',dim:'dim',dim7:'dim7',m7b5:'m7b5',add9:'add9',madd9:'madd9',m9:'m9',maj9:'maj9','6':'6',m6:'m6',aug:'aug'};
 function parseChordTok(tok,mode){
   const m=String(tok).trim().match(/^([b#♭♯]?)([1-7])(.*)$/); if(!m) return {deg:0,sev:false};
   let acc=/[b♭]/.test(m[1])?-1:/[#♯]/.test(m[1])?1:0; const deg=+m[2]-1, q=m[3].trim(), sc=SCALES[mode];
-  if(mode==='minor'&&acc===-1&&[2,5,6].includes(deg)) acc=0;   // 小调的 3、6、7 级本来就是降的，"b7" 按 VII 理解
+  if(mode==='minor'&&acc===-1&&[2,5,6].includes(deg)) acc=0;   // Minor degrees 3/6/7 are already lowered; interpret b7 as VII in minor.
   if(!(q in QUAL)) return {deg,sev:false};
   const iv=QUAL[q];
   const dia=[0,2,4,6].map(k=>{const d=deg+k;return sc[d%7]+12*Math.floor(d/7)-sc[deg];});
@@ -1913,7 +1912,7 @@ function parseChordTok(tok,mode){
 function parseNotes(str,maxStep){
   const out=[];
   for(const t of String(str||'').trim().split(/[\s,]+/)){
-    // 升降号写在级数前后都认（"4#" 和 "#4" 一样），免得大模型写了、网页却听不到
+    // Accept accidentals before or after a degree, such as 4# and #4, to preserve model-written notes.
     const m=t.match(/^(\d+):(\d+):([#b♯♭]?)(-?\d+)([#b♯♭]?)$/); if(!m||(m[3]&&m[5])) continue;
     const step=+m[1], len=Math.max(1,Math.min(16,+m[2])), deg=Math.max(-8,Math.min(16,+m[4]-1)), ac=m[3]||m[5];
     if(step>=maxStep) continue;
@@ -1948,7 +1947,7 @@ function fromSongPlan(p,prev,locked){
   a.mode=p.mode==='minor'?'minor':p.mode==='major'?'major':st.mode;
   applyCtl(a,false);
   a.bpm=clampInt(p.bpm,60,180,rand(st.bpm[0],st.bpm[1]));
-  // 和声
+  // Harmony.
   const planProg={};
   for(const [k,arr] of Object.entries(p.harmony||{})){
     if(!Array.isArray(arr)||!arr.length) continue;
@@ -1956,7 +1955,7 @@ function fromSongPlan(p,prev,locked){
     while(pr.length%4) pr.push(pr[pr.length-1]);
     planProg[k]=pr;
   }
-  // 律动
+  // Grooves.
   const grooves={};
   for(const [k,g] of Object.entries(p.grooves||{})){
     const dr=(g&&g.drums)||{};
@@ -1965,7 +1964,7 @@ function fromSongPlan(p,prev,locked){
     let ch=parsePat(g&&g.chords,false); if(!ch.length) ch=[[0,16]];
     grooves[k]={lanes,bass,chords:ch};
   }
-  // 段落
+  // Sections.
   const barNotes=[];
   const secs=(Array.isArray(p.sections)?p.sections:[]).slice(0,24).map(x=>{
     const type=SEC_TYPES.includes(x&&x.type)?x.type:'verse';
@@ -1975,7 +1974,7 @@ function fromSongPlan(p,prev,locked){
     return {id:++secId,type,bars,plan:{harmony:planProg[x.harmony]?x.harmony:(planProg[type]?type:Object.keys(planProg)[0]),groove:grooves[x.groove]?x.groove:(Object.keys(grooves)[0]||null),
       play,melody:String(x.melody||'none'),energy:Math.max(0,Math.min(1,+x.energy||.6)),moves:(Array.isArray(x.moves)?x.moves:[]).filter(m=>MOVE_NAME[m]),idea:String(x.idea||'').slice(0,120)}};
   });
-  // 时长兜底：大模型写得太短（不到 2 分 30 秒）时，按流行歌的习惯补段落
+  // Duration fallback: attempt to extend plans shorter than 2:30 by adding sections.
   const extNotes=barNotes.length?[`网页核对：${barNotes.join('；')}。`]:[];
   {
     const bpm=clampInt(p.bpm,60,180,100), dur=()=>secs.reduce((n,x)=>n+x.bars,0)*240/bpm, d0=dur();
@@ -1985,20 +1984,20 @@ function fromSongPlan(p,prev,locked){
       if(lc<0) break;
       const fv=secs.find(x=>x.type==='verse'), fp=secs.find(x=>x.type==='pre'), fc=secs.find(x=>x.type==='chorus');
       const nV=secs.filter(x=>x.type==='verse').length, bi=secs.findIndex(x=>x.type==='bridge');
-      if(k===0){ secs.splice(lc+1,0,cp(secs[lc])); continue; }                          // 先在结尾多唱一遍副歌
+      if(k===0){ secs.splice(lc+1,0,cp(secs[lc])); continue; }                          // First repeat the final chorus.
       if(!fv||nV>=3) break;
-      const cyc=[fv,fp,fc].filter(Boolean).map(cp); secs.splice(bi>0?bi:lc,0,...cyc);   // 再加一轮"主歌 →（预副歌）→ 副歌"
+      const cyc=[fv,fp,fc].filter(Boolean).map(cp); secs.splice(bi>0?bi:lc,0,...cyc);   // Then add a verse/pre-chorus/chorus cycle.
     }
     if(dur()>d0+1) extNotes.push(`大模型写的整首只有 ${fmtTime(d0)}，网页按流行歌的习惯补了段落，延长到 ${fmtTime(dur())}。`);
   }
-  // 旋律（长度按用到它的最长段落）
+  // Parse each melody using the longest section that references it.
   const planMel={}, maxBars={};
   secs.forEach(x=>{const k=x.plan.melody;maxBars[k]=Math.max(maxBars[k]||0,x.bars);});
   for(const [k,str] of Object.entries(p.melodies||{})){
     const ns=parseNotes(str,Math.max(4,maxBars[k]||8)*16);
     if(ns.length>=3) planMel[k]=ns;
   }
-  // 副歌作为"种子"（上面那 4 小节）
+  // Use the chorus as the four-bar seed.
   const cs=secs.find(x=>x.type==='chorus'&&planMel[x.plan.melody])||secs.find(x=>x.type==='chorus')||secs[0];
   const cp=planProg[cs.plan.harmony]||planProg[Object.keys(planProg)[0]]||st.progs[0].map(d=>({deg:d,sev:st.sev}));
   a.prog=cp.slice(0,4);
@@ -2020,7 +2019,7 @@ function fromSongPlan(p,prev,locked){
   a.passes=p.passes||1;
   a.fromSong=true; a.progFull=cp.length>4?cp.slice(0,8):null; a.progFullSig=progSig(a.prog);
   a.explain=explainFor(a);
-  // 用到这些东西的引擎兜底（大模型没写的旋律、和声，由引擎补上）
+  // Provide engine fallbacks for harmony and melody omitted from the plan.
   const base=songExtra(a);
   const fx={...base,planProg,planMel,grooves,fromPlan:true};
   const firstOf=t=>secs.find(x=>x.type===t);
@@ -2028,7 +2027,7 @@ function fromSongPlan(p,prev,locked){
   const ps=firstOf('pre'); if(ps&&planProg[ps.plan.harmony]) fx.preProg=planProg[ps.plan.harmony].slice(0,4);
   const bs=firstOf('bridge'); if(bs&&planProg[bs.plan.harmony]) fx.bridge=planProg[bs.plan.harmony].slice(0,4);
   fx.chorusB=cp.length>4?cp.slice(4,8):null;
-  // 修正方案旋律里强拍上和和弦打架的音（按各自用的和声）
+  // Resolve strong-beat melody clashes against each section's harmony.
   secs.forEach(x=>{const k=x.plan.melody, pr=planProg[x.plan.harmony]; if(!planMel[k]||!pr||planMel[k]._fixed) return;
     const ns=planMel[k], out=[]; const nb=Math.ceil((Math.max(...ns.map(n=>n.step))+1)/64);
     for(let b=0;b<nb;b++){const blk=ns.filter(n=>n.step>=b*64&&n.step<b*64+64).map(n=>({...n,step:n.step-b*64}));
@@ -2038,7 +2037,7 @@ function fromSongPlan(p,prev,locked){
   return {arr:a,song:secs,extra:fx};
 }
 
-/* ============ 声音引擎（Web Audio） ============ */
+/* ============ Web Audio sound engine ============ */
 const A={ctx:null};
 const mtof=m=>440*Math.pow(2,(m-69)/12);
 const BASS_P={
@@ -2066,7 +2065,7 @@ const ARP_P={
   glass:{oscs:[['sine',1,0,.7],['triangle',2,0,.1]],peak:.07,a:.004,d:.5,s:.1,r:.2}
 };
 const STR_P={oscs:[['sawtooth',1,-12,.3],['sawtooth',1,12,.3],['triangle',.5,0,.2]],lp:{from:1100,q:.6},peak:.045,a:.45,d:1.5,s:.9,r:.9};
-// 给 Suno 的引导旋律：接近人声的圆润音色，带一点颤音，没有混响拖尾
+// Suno guide melody: rounded vocal-like tone, delayed vibrato, and a dry tail.
 const VOX_P={oscs:[['sine',1,0,.7],['triangle',1,0,.28],['sine',2,0,.07]],lp:{from:2800,q:.5},peak:.24,a:.03,d:.3,s:.85,r:.1,vib:14};
 const LEAD_P={
   square:{oscs:[['square',1,0,.35],['sawtooth',1,7,.2]],lp:{from:2400,q:1.2},peak:.15,a:.012,d:.4,s:.75,r:.12},
@@ -2074,8 +2073,8 @@ const LEAD_P={
   pluck:{oscs:[['sawtooth',1,0,.5]],lp:{from:400,peak:4200,at:.004,to:700,dec:.2,q:3},peak:.16,a:.004,d:.25,s:.4,r:.1},
   bell:{oscs:[['sine',1,0,.8]],fm:{ratio:3.5,index:1.8,dec:.4},peak:.14,a:.003,d:.9,s:.05,r:.3}
 };
-// ============ 采样 ============
-// 真实乐器采样：钢琴、电钢琴、指弹贝斯、弦乐、颤音琴、原声鼓。每隔三个半音一个样本，中间的音靠变速得到
+// ============ Samples ============
+// Sampled instruments use one sample every three semitones, with playback-rate adjustment between samples.
 const R3=(a,b)=>{const o=[];for(let k=a;k<=b;k+=3)o.push(k);return o;};
 const SAMPLE_SETS={
   piano:{keys:R3(36,96),rel:.45,gain:1.25}, epiano:{keys:R3(36,93),rel:.35,gain:1.3}, bass:{keys:R3(24,60),rel:.08,gain:1.6},
@@ -2087,7 +2086,7 @@ const SAMPLE_SETS={
   slap:{keys:R3(24,60),rel:.08,gain:1.4}, upright:{keys:R3(24,60),rel:.12,gain:1.6}, timpani:{keys:R3(36,57),rel:1.2,gain:1.4}
 };
 const DRUM_FILES=['kick1','kick2','kick3','snare1','snare2','snare3','rim1','rim2','hat1','hat2','hat3','ohat1','ohat2','crash1','crash2'];
-// 按风格按需加载：只下载当前风格用得到的乐器
+// Load only the instruments required by the current style.
 const SAMP={buf:{},sets:{},ok:{},loading:0,failed:false,file:false};
 function setsFor(styleId){const K=KIT[styleId]||{},out=new Set(['drums']);for(const k of ['chords','bass','lead','arp','pad'])if(K[k]&&SAMPLE_SETS[K[k]])out.add(K[k]);return [...out];}
 function loadSet(ctx,set){
@@ -2104,7 +2103,7 @@ function loadSet(ctx,set){
   })();
 }
 async function loadSamples(ctx,styleId){
-  if(location.protocol==='file:'){SAMP.file=true;updateSampleChip();return;}   // 双击打开时浏览器不让读本地文件
+  if(location.protocol==='file:'){SAMP.file=true;updateSampleChip();return;}   // Browsers restrict local-file reads when the HTML file is opened directly.
   await Promise.all(setsFor(styleId||state.arr.styleId).map(x=>loadSet(ctx,x)));
 }
 const hasSet=set=>!!SAMP.ok[set];
@@ -2137,7 +2136,7 @@ function drumSample(name,t,v,out,rate=1){
 }
 const layerOf=(pre,v)=>pre+(v<.4?1:v<.8?2:3);
 
-// ============ 调音台：每条轨道 → 均衡 → 侧链 → 总线（均衡、压缩、限幅） ============
+// ============ Mixer: track, EQ, sidechain, master EQ/compressor/limiter ============
 function buildGraph(c,dest){
   const E={ctx:c};
   const tone=c.createBiquadFilter(); tone.type='lowpass'; tone.frequency.value=20000; tone.Q.value=.5;
@@ -2145,7 +2144,7 @@ function buildGraph(c,dest){
   const air=c.createBiquadFilter(); air.type='highshelf'; air.frequency.value=9000; air.gain.value=2;
   const glue=c.createDynamicsCompressor(); glue.threshold.value=-16; glue.ratio.value=2.5; glue.attack.value=.01; glue.release.value=.2; glue.knee.value=8;
   const lim=c.createDynamicsCompressor(); lim.threshold.value=-4; lim.ratio.value=20; lim.attack.value=.001; lim.release.value=.08; lim.knee.value=0;
-  // 最后一道软削波：偶尔漏过限幅器的尖峰被圆滑地压住，不会出现刺耳的数字失真
+  // Final soft clipping rounds off peaks that escape the limiter.
   const sat=c.createWaveShaper(), sc=new Float32Array(2048); for(let i=0;i<2048;i++){const x=i/1023.5-1;sc[i]=Math.tanh(1.3*x)/Math.tanh(1.3);} sat.curve=sc; sat.oversample='2x';
   const master=c.createGain(); master.gain.value=.8;
   master.connect(tone); tone.connect(low); low.connect(air); air.connect(glue); glue.connect(lim); lim.connect(sat); sat.connect(dest);
@@ -2159,14 +2158,14 @@ function buildGraph(c,dest){
   dl.connect(dlf); dlf.connect(fb); fb.connect(dl); dlf.connect(dout); dout.connect(master); E.delay=dl;
   const nb=c.createBuffer(1,c.sampleRate,c.sampleRate), nd=nb.getChannelData(0); for(let i=0;i<nd.length;i++) nd[i]=Math.random()*2-1; E.noise=nb;
   const curve=new Float32Array(1024); for(let i=0;i<1024;i++){const x=i/512-1;curve[i]=Math.tanh(x*2.2);} E.curve=curve;
-  // 每条轨道先切掉用不着的低频，避免浑
+  // Remove unnecessary low frequencies from each track to reduce muddiness.
   const HP={drums:20,bass:30,chords:140,melody:180,arp:220,pad:120,perc:300,fx:120};
   const PAN={chords:-.18,arp:.32,pad:-.26,perc:.36};
   E.ch={};
   for(const L of LAYERS){
     const g=c.createGain(),hp=c.createBiquadFilter(),pump=c.createGain(),send=c.createGain();
     hp.type='highpass'; hp.frequency.value=HP[L]; hp.Q.value=.6;
-    // 声像：低频和主旋律放中间，和弦、琶音、铺底、打击乐左右错开，声场更开
+    // Keep bass and lead centered; spread chords, arpeggios, pads, and percussion across the stereo field.
     const pan=c.createStereoPanner?c.createStereoPanner():null; if(pan) pan.pan.value=PAN[L]||0;
     g.connect(hp); hp.connect(pump); if(pan){pump.connect(pan);pan.connect(master);}else pump.connect(master); pump.connect(send); send.connect(conv);
     E.ch[L]={g,pump,send};
@@ -2192,9 +2191,9 @@ function applyMix(E=A,now){
     set(E.ch[L].send.gain,sends[L]);
   }
   set(E.delay.delayTime,60/state.arr.bpm*.75);
-  set(E.tone.frequency,toneBase());   // Lo-fi 整体闷一点，像老磁带
-  // 真实乐器的风格整体偏小声，总线补一点增益，让各风格响度接近
-  set(E.master.gain,1.15*(STYLES[state.arr.styleId].gain||{ballad:1.9,lofi:1.9,citypop:1.5,trap:.16}[state.arr.styleId]||.9));   // ×1.15：声像左右打开后补回一点响度
+  set(E.tone.frequency,toneBase());   // Darken lo-fi output for a tape-like tone.
+  // Compensate quieter sampled-instrument styles at the master bus.
+  set(E.master.gain,1.15*(STYLES[state.arr.styleId].gain||{ballad:1.9,lofi:1.9,citypop:1.5,trap:.16}[state.arr.styleId]||.9));   // Apply 1.15 gain to compensate for stereo panning.
 }
 function voice(o,f,t,dur,out,k=1){
   const c=A.ctx, g=c.createGain(); let dest=g, flt=null;
@@ -2217,7 +2216,7 @@ function voice(o,f,t,dur,out,k=1){
     mg.gain.setValueAtTime(f*o.fm.index,t); mg.gain.exponentialRampToValueAtTime(f*o.fm.index*.05+.01,t+o.fm.dec);
     m.connect(mg); oscs.forEach(x=>mg.connect(x.frequency)); m.start(t); m.stop(stop);
   }
-  if(o.vib){   // 颤音：像人声一样，音拉长之后才慢慢出现
+  if(o.vib){   // Introduce vocal-like vibrato gradually on sustained notes.
     const l=c.createOscillator(), lg=c.createGain(); l.frequency.value=5.3;
     lg.gain.setValueAtTime(0,t); lg.gain.linearRampToValueAtTime(0,t+.22); lg.gain.linearRampToValueAtTime(o.vib,t+.5);
     l.connect(lg); oscs.forEach(x=>lg.connect(x.detune)); l.start(t); l.stop(stop);
@@ -2298,7 +2297,7 @@ function drum(L,t,v,out,acoustic){
   }
 }
 
-/* ============ 走带（调度） ============ */
+/* ============ Transport and scheduling ============ */
 const tp={playing:false,step:0,next:0,timer:null,q:[],cur:-1};
 function source(){return state.mode==='song'?{ev:state.S.ev,len:state.S.bars*16}:{ev:state.D.ev,len:64};}
 function pump(t){
@@ -2317,8 +2316,8 @@ function sweep(t,dur){
 function playStep(ev,step,t,sd,only){
   const on=L=>!only||only===L;
   const s=state.arr.sound, F=state.feel, K=KIT[state.arr.styleId]||{};
-  const J=ms=>(Math.random()*2-1)*ms/1000*F;                                   // 时间上的小误差
-  const V=(k,r=.1)=>Math.max(.05,(1+(k-1)*F)*(1+(Math.random()*2-1)*r*F));   // 力度起伏
+  const J=ms=>(Math.random()*2-1)*ms/1000*F;                                   // Small timing variation.
+  const V=(k,r=.1)=>Math.max(.05,(1+(k-1)*F)*(1+(Math.random()*2-1)*r*F));   // Velocity variation.
   const acc=step%4===0?1:step%2===0?.8:.62;
   const inst=(set,m,tt,dur,out,k,synth)=>set&&hasSet(set)?sampleVoice(set,m,tt,dur,out,k):synth();
   for(const [L,v] of ev.drums[step]){
@@ -2337,7 +2336,7 @@ function playStep(ev,step,t,sd,only){
     if(on('fx')) fxHit(type,t,l*sd,A.ch.fx.g);
   }
 }
-// 摇摆：十六分音符的摇摆（Lo-fi 等），以及爵士、蓝调那种八分音符"长—短"的 Shuffle
+// Sixteenth-note swing and long-short eighth-note shuffle for jazz/blues.
 function swingOff(step,sd){
   const a=state.arr, st=STYLES[a.styleId]||{};
   if(a.groove!=null) return st.swing8?(step%4===2?a.groove*sd*.66:0):(step%2===1?a.groove*.5*sd*.5:0);
@@ -2411,16 +2410,16 @@ function setMode(m,from){
   if(was||from!==undefined) start(from||0);
 }
 
-/* ============ AI 生成内容标识（《人工智能生成合成内容标识办法》/ GB 45438-2025）============ */
-// 隐式标识：文件元数据里写 AIGC 字段；显式标识：音频末尾加"短长 短短"提示音（摩斯码 AI），文本文件里写明
+/* ============ AI-generated content labels: Chinese labeling rules / GB 45438-2025 ============ */
+// Implicit labels use AIGC metadata; explicit labels use an audible Morse AI marker and text notices.
 const AIGC_PRODUCER='拾音编曲台 '+location.host;
 const AIGC_TEXT=`本作品由人工智能生成（${AIGC_PRODUCER}）`;
 function aigcId(){return 'SY'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,8).toUpperCase();}
 function aigcJSON(id){return JSON.stringify({AIGC:{Label:'1',ContentProducer:AIGC_PRODUCER,ProduceID:id,ReservedCode1:'',ContentPropagator:'',PropagateID:'',ReservedCode2:''}});}
-// 在音频末尾接一段提示音：停 0.8 秒后，1 kHz 短长 短短，音量约 -20 dBFS
+// Append a 1 kHz short-long / short-short marker after 0.8 seconds of silence, at approximately -20 dBFS.
 function withAigcTone(buf){
   const sr=buf.sampleRate, u=0.09*sr|0, gap=0.8*sr|0;
-  const pat=[[1,1],[3,3],[1,1],[1,0]];   // [响的单位数, 之后停的单位数]：· −   · ·
+  const pat=[[1,1],[3,3],[1,1],[1,0]];   // Pairs of audible units and following silent units encode Morse AI.
   const toneLen=pat.reduce((n,[on,off])=>n+(on+off)*u,0), tail=0.5*sr|0;
   const out=new AudioBuffer({numberOfChannels:buf.numberOfChannels,length:buf.length+gap+toneLen+tail,sampleRate:sr});
   for(let c=0;c<buf.numberOfChannels;c++){
@@ -2443,14 +2442,14 @@ function mtrk(name,evs){
   return [0x4D,0x54,0x72,0x6B,...u32(out.length),...out];
 }
 function midiFile(a,which,D,aid){
-  D=D||derive(a); const T=120; // 480 PPQ, 十六分音符 = 120 tick
+  D=D||derive(a); const T=120; // 480 PPQ; one sixteenth note is 120 ticks.
   const us=Math.round(60000000/a.bpm);
   const SF=[0,-5,2,-3,4,-1,6,1,-4,3,-2,5], sf=SF[mod(a.root+(a.mode==='minor'?3:0),12)];
   const meta=[{t:0,o:0,d:[0xFF,0x51,0x03,(us>>16)&255,(us>>8)&255,us&255]},{t:0,o:0,d:[0xFF,0x58,0x04,4,2,24,8]},{t:0,o:0,d:[0xFF,0x59,0x02,sf&255,a.mode==='minor'?1:0]}];
   (D.markers||[]).forEach(m=>{const b=utf8(m.name);meta.push({t:m.step*T,o:0,d:[0xFF,0x06,...vlq(b.length),...b]});});
   for(const txt of [AIGC_TEXT,aigcJSON(aid||aigcId())]){const b=utf8(txt);meta.push({t:0,o:0,d:[0xFF,0x01,...vlq(b.length),...b]});}
   const tracks=[mtrk('拾音 · '+STYLES[a.styleId].name,meta)];
-  // 摇摆和 Shuffle 也写进 MIDI：反拍的音符往后挪一点，拖进 DAW 听起来和网页里一样
+  // Write swing/shuffle offsets into MIDI so DAW playback matches the browser.
   const sw=t=>{const st=Math.round(t/T);return st*T===t?Math.round(swingOff(st,1)*T):0;};
   const note=(evs,ch,t,len,m,v)=>{m=Math.max(0,Math.min(127,m));t+=sw(t);evs.push({t,o:1,d:[0x90|ch,m,v]},{t:t+len,o:0,d:[0x80|ch,m,0]});};
   const progs={bass:{saw:38,sub:33,pluck:39,'808':38},pad:{saw:89,ep:4,piano:0,stab:81,bell:11},lead:{square:80,sine:79,pluck:84,bell:11}};
@@ -2475,7 +2474,7 @@ function midiFile(a,which,D,aid){
     const e=[]; D.roll.fx.filter(n=>n.type==='crash').forEach(n=>note(e,9,n.step*T,T*4,49,100));
     if(e.length) tracks.push(mtrk('转场 镲片',e));
   }
-  // 和弦名轨：每小节一个文字事件，在 DAW 里能直接看到和弦
+  // Chord-name track: one text event per bar for DAW display.
   if(which.length>1){const e=[]; const names=D.map?D.map.map(m=>m.chord):D.infos.map(c=>c.name);
     names.forEach((n,i)=>{if(i&&names[i-1]===n)return;const b=utf8(n);e.push({t:i*16*T,o:0,d:[0xFF,0x01,...vlq(b.length),...b]});});
     tracks.push(mtrk('和弦名',e));}
@@ -2507,7 +2506,7 @@ function zip(files){
   const out=new Uint8Array(all.reduce((s,p)=>s+p.length,0));let p=0;for(const x of all){out.set(x,p);p+=x.length;}
   return out;
 }
-// 和弦谱：每段每小节的和弦，拿去给乐手或者自己写词用
+// Chord chart: harmony by section and bar for performers and songwriting.
 function leadSheet(a){
   const S=state.S, st=STYLES[a.styleId], L=[];
   L.push(`拾音编曲台 · ${st.name}`);
@@ -2535,7 +2534,7 @@ function buildExport(a){
   return {name:base+'.zip',data:zip(files)};
 }
 const dlReady=(window.claude&&typeof window.claude.use==='function')?window.claude.use('downloads').catch(()=>null):Promise.resolve(null);
-// 通用保存：在网页版里通过平台下载（只收 zip 等格式，wav 会先打包成 zip）；在本机直接下载
+// Save through the host platform when available, wrapping WAV in ZIP if needed, or download directly in the browser.
 async function saveFile(name,data,mime,okMsg){
   const dl=await Promise.race([dlReady,new Promise(r=>setTimeout(()=>r(undefined),400))]);
   if(dl){
@@ -2555,7 +2554,7 @@ async function exportMidi(){
   await saveFile(f.name,f.data,'application/zip','已导出：整首 MIDI（含和弦名、段落标记、调号）、整首分轨、4 小节循环分轨，以及一份和弦谱。');
 }
 
-/* ============ 导出音频：用离线渲染把整首歌（或单独一轨）算成 WAV ============ */
+/* ============ Audio export: offline full-song or single-track WAV rendering ============ */
 async function renderAudio(solo,onProgress,opt={}){
   initAudio();
   await loadSamples(A.ctx);
@@ -2580,7 +2579,7 @@ async function renderAudio(solo,onProgress,opt={}){
     for(const L of LAYERS) state.muted[L]=savedMuted[L];
     Object.assign(state.vol,savedVol);
   }
-  // 渲染过程中每隔一段报告一次进度
+  // Report progress periodically during rendering.
   if(onProgress&&off.suspend){
     const total=off.length/sr;
     const q=128/sr;for(let i=1;i<10;i++){const at=Math.round(total*i/10/q)*q;off.suspend(at).then(()=>{onProgress(i/10);off.resume();}).catch(()=>{});}
@@ -2589,7 +2588,7 @@ async function renderAudio(solo,onProgress,opt={}){
 }
 function wavBytes(buf,aid){
   const ch=buf.numberOfChannels, n=buf.length, sr=buf.sampleRate;
-  // LIST/INFO：软件名 + AIGC 隐式标识（放在音频数据之后，任何播放器都能正常读）
+  // Append LIST/INFO software and AIGC metadata after audio data for player compatibility.
   const sub=(id,str)=>{const b=new TextEncoder().encode(str+'\0'),pad=b.length&1;const u=new Uint8Array(8+b.length+pad),v=new DataView(u.buffer);for(let i=0;i<4;i++)u[i]=id.charCodeAt(i);v.setUint32(4,b.length,true);u.set(b,8);return u;};
   const items=[sub('ISFT',AIGC_PRODUCER),sub('ICMT',aigcJSON(aid||aigcId()))], il=items.reduce((s,x)=>s+x.length,0);
   const list=new Uint8Array(12+il),lv=new DataView(list.buffer);list.set([76,73,83,84]);lv.setUint32(4,4+il,true);list.set([73,78,70,79],8);{let p=12;for(const x of items){list.set(x,p);p+=x.length;}}
@@ -2600,13 +2599,13 @@ function wavBytes(buf,aid){
   w(36,'data');out.setUint32(40,n*ch*2,true);
   const data=[...Array(ch)].map((_,i)=>buf.getChannelData(i));
   let peak=0; for(const d of data) for(let i=0;i<n;i++){const v=Math.abs(d[i]);if(v>peak)peak=v;}
-  const g=peak>.97?.97/peak:1;   // 峰值保护，避免削波
+  const g=peak>.97?.97/peak:1;   // Peak protection against clipping.
   let o=44; for(let i=0;i<n;i++) for(let c=0;c<ch;c++){const v=Math.max(-1,Math.min(1,data[c][i]*g));out.setInt16(o,v<0?v*0x8000:v*0x7fff,true);o+=2;}
   const bytes=new Uint8Array(out.buffer); bytes.set(list,o);
   return bytes;
 }
 let rendering=false;
-/* ============ 给 Suno：让它按我们的旋律和结构来填词、演唱 ============ */
+/* ============ Suno guidance: lyrics and vocals following this melody and form ============ */
 const STYLE_EN={ballad:'mandopop ballad, emotional piano ballad',citypop:'city pop, 80s japanese funk-pop, groovy',folk:'acoustic folk pop, warm guitar',dancepop:'dance pop, upbeat, four-on-the-floor',rnb:'contemporary r&b, smooth, neo soul',
   synthwave:'synthwave, retro 80s, analog synths, driving',house:'deep house, groovy, club',futurebass:'future bass, lush supersaws, energetic',dnb:'liquid drum and bass, fast breakbeats',chiptune:'chiptune pop, 8-bit, playful',ambient:'ambient pop, dreamy, atmospheric',lofi:'lo-fi pop, chill, dusty, laid-back',
   trap:'melodic trap, 808 bass, hi-hat rolls',funk:'funk pop, slap bass, groovy',reggae:'reggae pop, offbeat skank, laid-back',afrobeats:'afrobeats, afropop, syncopated',bossa:'bossa nova, nylon guitar, soft',
@@ -2694,7 +2693,7 @@ async function exportWav(stems){
   finally{rendering=false;btn.disabled=false;btn.innerHTML=old;}
 }
 
-/* ============ 界面 ============ */
+/* ============ Interface ============ */
 const $=id=>document.getElementById(id);
 const rack=$('rack');
 const state={arr:null,D:null,S:null,mode:'loop',song:defaultSong(),extra:null,sel:3,mood:'',locked:{},muted:{},vol:{drums:.9,bass:.85,chords:.7,melody:.8,arp:.6,pad:.6,perc:.7,fx:.7},more:true,feel:.7,keyUp:true,ctl:{key:'auto',bright:null,energy:.5,mel:.45,harm:.6,swing:null},backend:null,busy:false};
@@ -2795,7 +2794,7 @@ function drawRoll(L){
     g.beginPath(); if(g.roundRect) g.roundRect(x,y,ww,hh,1.5); else g.rect(x,y,ww,hh); g.fill();
   });
 }
-// 整首歌曲模式下，上面的轨道显示当前这 4 小节在整首歌里实际弹的内容；循环模式显示种子
+// Full-song mode displays the current four bars as performed; loop mode displays the seed arrangement.
 function viewData(L){
   if(state.mode!=='song'||!state.S) return {roll:state.D.roll[L],names:state.D.infos.map(i=>i.name)};
   const o=Math.min(state.viewOff||0,Math.max(0,(state.S.bars-4)*16)), e=o+64;
@@ -2862,7 +2861,7 @@ function renderBreath(){
   $('breath').textContent=out.join('；')+'。';
 }
 const fmtTime=s=>Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0');
-// 这一段来自大模型方案时：显示制作人的想法、出场乐器、手法、和弦
+// For model sections, show the producer's idea, instruments, moves, and chords.
 function renderPlanInsp(s,barSec){
   const a=state.arr, P=s.plan, X=state.extra||{};
   $('inspMeta').textContent=`第 ${state.sel+1} 段 · ${s.bars} 小节 · 约 ${Math.round(s.bars*barSec)} 秒 · 能量 ${Math.round(P.energy*100)}`;
@@ -2898,7 +2897,7 @@ function renderConcept(){
     const ul=document.createElement('ul'); a.review.forEach(t=>{const li=document.createElement('li');li.textContent=t;ul.appendChild(li);}); box.appendChild(ul);
   }
 }
-/* 整首歌的和声：每种段落一行，写清楚用了哪些和弦、为什么 */
+/* Display full-song harmony by section type, including chords and their purpose. */
 function renderHarmony(){
   const a=state.arr, X=state.extra||{}, box=$('harm'); box.innerHTML='';
   if(!X.vProg) return;
@@ -2929,7 +2928,7 @@ function renderHarmony(){
     return;
   }
   const diff=(A,B)=>[0,1,2,3].find(k=>progKey([A[k]])!==progKey([B[k]]));
-  // 副歌
+  // Chorus.
   if(types.has('chorus')){
     const g=[['c0',a.prog]]; let t='就是上面这 4 个和弦，前奏和尾奏也用它。';
     if(X.chorusB&&bars('chorus')>4){
@@ -3037,7 +3036,7 @@ function renderSong(){
 }
 function editSong(fn){commit();fn(state.song);renderSong();if(!tp.playing)showPos(-1);}
 
-/* ============ 撤销、重做、版本记录 ============ */
+/* ============ Undo, redo, and version history ============ */
 const HIST={undo:[],redo:[]};
 const snap=()=>JSON.stringify({arr:state.arr,song:state.song,extra:state.extra,keyUp:state.keyUp,ctl:state.ctl});
 function commit(){HIST.undo.push(snap());if(HIST.undo.length>60)HIST.undo.shift();HIST.redo=[];updUndo();}
@@ -3052,7 +3051,7 @@ function restore(str){
 function undo(){if(!HIST.undo.length)return;HIST.redo.push(snap());restore(HIST.undo.pop());toast('已撤销');}
 function redo(){if(!HIST.redo.length)return;HIST.undo.push(snap());restore(HIST.redo.pop());toast('已重做');}
 function updUndo(){$('undoBtn').disabled=!HIST.undo.length;$('redoBtn').disabled=!HIST.redo.length;}
-// 版本记录：每次生成或换一轨都记一版，保存在这台电脑的浏览器里，打星的会一直留着
+// Save a local version after generation or layer replacement; starred versions are retained.
 const VKEY='shiyin.versions.v1';
 let versions=[]; try{versions=JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){versions=[];}
 function saveVersions(){try{localStorage.setItem(VKEY,JSON.stringify(versions));}catch(e){}}
@@ -3061,7 +3060,7 @@ function record(what,by){
   const v={id:now.getTime()+'-'+Math.random().toString(36).slice(2,6),time:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
     what:String(what||'').slice(0,24),by:by||'',label:`${STYLES[a.styleId].name} · ${NOTE_NAMES[a.root]}${a.mode==='minor'?' 小调':' 大调'} · ${a.bpm}`,star:false,data:snap()};
   versions.unshift(v);
-  // 最多留 30 个没打星的
+  // Keep at most 30 unstarred versions.
   let plain=0; versions=versions.filter(x=>x.star||++plain<=30);
   saveVersions(); renderVersions();
 }
@@ -3106,7 +3105,7 @@ function rollAll(){
   if(!L.length){toast('四层都锁定了，先解锁一层再换。');return;}
   commit(); state.arr=compose(a.mood,a.styleId,a,state.locked); render(L); record('没锁的全部换');
 }
-/* 三个方向：一次写三版，点卡片切换试听，选中哪个就在哪个上面继续改 */
+/* Generate three alternatives; selecting a card changes the arrangement being edited. */
 function directions(){
   if(state.busy) return;
   const mood=$('mood').value.trim()||PRESETS[0]; state.mood=mood;
@@ -3144,7 +3143,7 @@ function renderDirs(){
   });
 }
 function newForm(){state.song=songForm(state.arr.styleId,state.arr.bpm);state.sel=Math.max(0,state.song.findIndex(x=>x.type==='chorus'));}
-// 用户调过的方向也告诉大模型
+// Include user-adjusted directions in the model request.
 function ctlHints(){
   const c=state.ctl, h=[];
   if(c.bright!=null) h.push(c.bright<.5?'偏暗':'偏亮');
@@ -3171,7 +3170,7 @@ async function generate(){
       const r=await fetch('/api/arrange',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mood:mood+ctlHints(),style:forced})});
       let j=await r.json().catch(()=>({error:'HTTP '+r.status}));
       if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-      // 新版服务：先拿任务号，再每 3 秒问一次进度（生成可能要好几分钟）
+      // Asynchronous generation: obtain a job ID, then poll every three seconds.
       if(j.job){
         const id=j.job, deadline=Date.now()+12*60*1000;
         for(;;){
@@ -3237,7 +3236,7 @@ async function detectBackend(){
   }catch(e){}
 }
 
-/* 事件 */
+/* Events. */
 PRESETS.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=p;b.onclick=()=>{$('mood').value=p;generate();};$('chips').appendChild(b);});
 {
   const sel=$('stylePick'), o0=document.createElement('option'); o0.value='auto'; o0.textContent='自动识别'; sel.appendChild(o0);
@@ -3270,7 +3269,7 @@ $('wavStems').onclick=()=>exportWav(true);
 $('wavSuno').onclick=()=>exportSuno();
 document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap'))$('wavMenu').hidden=true;});
 
-/* 调整方向 */
+/* Direction controls. */
 const W=(v,list)=>list.find(x=>v<x[0])[1];
 const energyWord=v=>W(v,[[.2,'很收'],[.4,'收'],[.6,'适中'],[.8,'满'],[1.01,'很满']]);
 const melWord=v=>W(v,[[.3,'好唱'],[.62,'适中'],[.8,'花哨'],[1.01,'很花哨']]);

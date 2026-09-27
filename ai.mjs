@@ -1,9 +1,9 @@
-// 拾音编曲台 · 大模型相关：供应商、提示词、编曲
-// 这个文件改完不用重启服务，下一次请求会自动用新的版本
+// Arro model integration: providers, prompts, and arrangement generation.
+// Changes are reloaded on the next request; a service restart is unnecessary.
 
 import { measure, flags, fmt, playedBars } from './eval/metrics.mjs';
 
-// 可切换的模型供应商（都走 OpenAI 兼容接口）
+// Switchable model providers using OpenAI-compatible APIs.
 const PROVIDERS = {
   qwen:     { label: '千问',     baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1', keyEnv: 'DASHSCOPE_API_KEY', model: process.env.QWEN_MODEL || 'qwen-plus', json: true },
   deepseek: { label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1',                       keyEnv: 'DEEPSEEK_API_KEY',  model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', json: true },
@@ -67,7 +67,7 @@ const SYSTEM = `你是一位一线流行音乐制作人兼编曲老师，帮新�
 "hook":{"rhythm":"c332","contour":"arch","form":"AABA","why":"一句话理由"},
 "explain":"两三句话。"}`;
 
-// 不联网的演示数据（PROVIDER=mock 时使用）
+// Offline demo data for PROVIDER=mock.
 const MOCK = {"title":"午夜环线","style":"synthwave","key":"A","mode":"minor","bpm":104,
 "progression":[{"degree":1,"seventh":false},{"degree":6,"seventh":false},{"degree":3,"seventh":false},{"degree":7,"seventh":false}],
 "drums":{"name":"复古直拍","kick":"x.......x.......","snare":"....x.......x...","clap":"................","hat":"x.x.x.x.x.x.x.x.","openhat":"................"},
@@ -77,12 +77,12 @@ const MOCK = {"title":"午夜环线","style":"synthwave","key":"A","mode":"minor
 "hook":{"rhythm":"c332","contour":"arch","form":"LINE","why":"三三二切分配上先上后下的弧线，像车窗外一盏盏掠过的路灯。"},
 "explain":"i–VI–III–VII 从小调出发，借几个大三和弦慢慢往上走，暗里透着光，像夜里路灯一盏盏掠过。八分音符的贝斯一直往前推，就是开车的速度感。"};
 
-// 每次随机给一个创作方向，避免大模型每次写得差不多
+// Choose a creative direction at random to vary generated arrangements.
 const FEELS = ['贝斯多用休止，和底鼓一问一答','鼓点尽量简单，把空间留给和弦','鼓点加一些十六分音符的轻击，律动更细','和弦少用最常见的套路，找一个更有性格的走向','和弦节奏用切分，提前半拍进','贝斯用八度跳跃让律动更活泼'];
 
 
 
-/* ============ 整首歌：大模型当制作人 ============ */
+/* ============ Full songs: the model acts as producer ============ */
 const STYLE_LIST = `  流行：ballad 流行抒情，citypop City Pop，folk 民谣，dancepop 舞曲流行，rnb R&B
   电子：synthwave 合成器浪潮，house House 舞曲，futurebass Future Bass，dnb Drum & Bass，chiptune 8-bit 游戏，ambient 氛围，lofi Lo-fi
   节奏：trap Trap 说唱，funk 放克，reggae 雷鬼，afrobeats 非洲节拍，bossa 波萨诺瓦
@@ -162,7 +162,7 @@ const CRITIC_SYSTEM = `你是一位以挑剔著称的资深 A&R 兼制作人。�
 
 字段说明：harmony 的和弦写法是级数 1-7（可加 b/# 前缀和 m、maj7、m7、7、9、sus4、sus2、dim、add9、m9、maj9、6、m6 后缀）；grooves 里 drums 是 16 个字符的鼓点，bass 是 "步:长:音(R/5/O/3)"，chords 是 "步:长"；melodies 是 "步:长:级数" 的音符串（一小节 16 步，级数可加 #/b）；sections 的 moves 只能从 fill stop full_stop build drop_first_bar half_time double_octave harmony_vocal counter_line filter_sweep key_up 里选。`;
 
-// 不联网的演示数据（PROVIDER=mock 时使用）：一首完整的歌
+// Offline full-song demo data for PROVIDER=mock.
 const MOCK_SONG = {"title":"午夜环线","concept":"一个人夜里开车绕城：主歌只有贝斯和鼓像引擎声，副歌突然打开成一片霓虹；最特别的是第二遍副歌前全体停两拍，像车开进隧道。","style":"synthwave","key":"A","mode":"minor","bpm":104,
 "harmony":{"chorus":["1","6","3","7","1","6","4","5sus4"],"verse":["1","b7","6","7","1","b7","4m","5"],"pre":["4","5","6","5"],"bridge":["6maj7","7","3","5"]},
 "grooves":{"A":{"drums":{"kick":"x.......x.x.....","snare":"....x.......x...","clap":"................","hat":"x.x.x.x.x.x.x.x.","openhat":"..............x."},"bass":"0:2:R 2:2:R 4:2:O 6:2:R 8:2:R 10:2:R 12:2:O 14:2:5","chords":"0:16"},
@@ -191,7 +191,7 @@ async function callLLM(system, user, temperature) {
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
   };
   if (P.json) body.response_format = { type: 'json_object' };
-  // 千问 3 系列默认会先"深度思考"，一首歌要想好几分钟；关掉思考直接写，快很多（想开可以设 QWEN_THINKING=1）
+  // Qwen 3 thinking can take several minutes; default to direct generation. Set QWEN_THINKING=1 to enable thinking.
   if (PROVIDER === 'qwen' && process.env.QWEN_THINKING !== '1') body.enable_thinking = false;
   const r = await fetch(P.baseURL + '/chat/completions', {
     method: 'POST',
@@ -205,7 +205,7 @@ async function callLLM(system, user, temperature) {
 }
 const validSong = p => p && Array.isArray(p.sections) && p.sections.length >= 2 && p.harmony && p.melodies && p.grooves;
 
-// 两轮：制作人写初稿 → 挑剔的制作人审一遍并改好
+// Two passes: producer draft, followed by a critical producer review and revision.
 async function arrangeSong(mood, style, onStage = () => {}) {
   if (PROVIDER === 'mock') {
     await new Promise(r => setTimeout(r, 900));
@@ -216,7 +216,7 @@ async function arrangeSong(mood, style, onStage = () => {}) {
   onStage('draft');
   for (let i = 0; i < 2 && !validSong(draft); i++) {
     try { draft = await callLLM(SONG_SYSTEM, ask, 1.0); }
-    catch (e) { err = e; if (/timeout|aborted/i.test(String(e && (e.name + e.message)))) break; }   // 超时就不再重试，免得等双倍时间
+    catch (e) { err = e; if (/timeout|aborted/i.test(String(e && (e.name + e.message)))) break; }   // Stop retrying after a timeout to avoid doubling the wait.
   }
   if (!validSong(draft)) throw err || new Error('大模型没有返回完整的整首方案');
   if (style) draft.style = style;
@@ -225,7 +225,7 @@ async function arrangeSong(mood, style, onStage = () => {}) {
   let why = '';
   try {
     const fixed = await callLLM(CRITIC_SYSTEM, `画面或心情：${mood}\n初稿：\n${JSON.stringify(draft)}\n\n${measureText(draft)}`, 0.7);
-    // 有的模型只返回改过的部分：和初稿合并，缺的字段沿用初稿
+    // Some models return partial revisions; merge them with the draft and retain omitted fields.
     const merged = { ...draft, ...fixed,
       harmony: { ...draft.harmony, ...(fixed.harmony || {}) },
       grooves: { ...draft.grooves, ...(fixed.grooves || {}) },
@@ -233,18 +233,18 @@ async function arrangeSong(mood, style, onStage = () => {}) {
       sections: Array.isArray(fixed.sections) && fixed.sections.length >= 2 ? fixed.sections : draft.sections };
     if (validSong(merged)) { if (style) merged.style = style; return finalize({ ...merged, passes: 2, draftTitle: draft.title }); }
     why = '返回的方案不完整';
-  } catch (e) { why = String(e && e.message || e).slice(0, 80); console.error('[第二轮修改失败]', why); }
+  } catch (e) { why = String(e && e.message || e).slice(0, 80); console.error('[Second-pass revision failed]', why); }
   return finalize({ ...draft, passes: 1, review: [`第二轮修改没有成功（${why}），这是初稿。`] });
 }
 
-/* ============ 程序测量：给复审提供准确的事实，给结果做一致性核对 ============ */
-// 大模型心算时长、数小节并不可靠，这些由程序算好交给它；这里只陈述事实，不替它做音乐判断
+/* ============ Program measurements: factual review context and output consistency ============ */
+// Compute duration and bar counts in code; provide facts while leaving musical judgment to the model.
 function measureText(plan) {
   const m = measure(plan), bpm = m.bpm, barSec = 240 / bpm;
   const secs = (plan.sections || []).map((x, i) => `${i + 1}.${x.type} ${x.bars} 小节（${Math.round(playedBars(x.bars) * barSec)} 秒）`).join('；');
   const harm = Object.entries(plan.harmony || {}).map(([k, v]) => `${k} ${Array.isArray(v) ? v.length : 0} 个和弦`).join('，');
   const mel = Object.entries(plan.melodies || {}).map(([k, v]) => { const x = measure({ ...plan, sections: [{ type: 'chorus', bars: 8, melody: k }], melodies: { [k]: v } }).melody.chorus; return x ? `${k} ${x.notes} 个音、音域 ${x.range} 个半音` : `${k} 无法解析`; }).join('，');
-  // 只交给它事实和技术错误（时长、小节数、解析不了的写法），不交音乐上的好坏判断——那是制作人自己的事
+  // Supply measurements and technical errors only. The producer makes musical judgments.
   const warn = flags(m).filter(f => /^(时长|段落小节数|有 \d+ 处写法|和声组不是|引用了不存在|未知手法)/.test(f));
   return `【程序测量（准确，以此为准）】
 bpm ${bpm}，每小节 ${barSec.toFixed(2)} 秒；共 ${m.structure.sections} 段、${m.structure.playedBars} 小节，总时长 ${fmt(m.structure.playedSec)}。
@@ -253,7 +253,7 @@ bpm ${bpm}，每小节 ${barSec.toFixed(2)} 秒；共 ${m.structure.sections} �
 和声：${harm}；全曲共 ${m.harmony.uniqueChords} 种和弦。
 旋律：${mel}。${warn.length ? `\n需要注意：${warn.join('；')}。` : ''}`;
 }
-// 定稿：段落小节数规范成 4/8；review 里写的时长和实际不符时，附上程序核对的真实时长
+// Normalize section lengths to 4/8 bars and append measured duration when review claims disagree.
 function finalize(plan) {
   const notes = [];
   for (const x of plan.sections || []) {
@@ -303,4 +303,4 @@ async function arrangeLoop(mood, style) {
 }
 
 
-export { measureText, finalize };   // 供评测和测试使用
+export { measureText, finalize };   // Exported for evaluation and tests.

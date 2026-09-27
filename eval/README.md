@@ -1,18 +1,42 @@
-# 评测
+# Evaluation
 
-固定 20 个意象（`prompts.json`），每个版本都生成一遍，比较数字，防止质量倒退。
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-- `metrics.mjs`：从整首方案里测量事实。包括结构（段落、曲式、实际时长）、和声（和弦种类、调外比例、套路进行）、旋律（音数、音域、级进、节奏自相似）、律动、制作手法，以及一致性检查（复审写的时长对不对、有没有程序解析不了的写法）。思路参考 [MusPy](https://github.com/salu133445/muspy)、[mgeval](https://github.com/RichardYang40148/mgeval) 和 [Libretto](https://github.com/Xyc-arch/Libretto)：分轴诊断，不合成单一总分。
-- `run.mjs`：依次调用编曲台生成，结果存在 `runs/`（不进 git）。
-- `report.mjs`：生成对比报告（Markdown）。
+Each version is evaluated against the same 20 scenes in `prompts.json`. The scenes remain in Chinese so that comparisons use identical inputs.
+
+- `metrics.mjs` measures structure, harmony, melody, grooves, production moves, and consistency. It reports separate diagnostic axes instead of a single musical quality score, drawing on ideas from [MusPy](https://github.com/salu133445/muspy), [mgeval](https://github.com/RichardYang40148/mgeval), and [Libretto](https://github.com/Xyc-arch/Libretto).
+- `run.mjs` generates arrangements sequentially and saves results under `runs/`, which is excluded from Git.
+- `report.mjs` writes a Markdown report, optionally comparing two result files.
+
+## Run an evaluation
+
+In Bash, from the repository directory:
 
 ```bash
-# 线上跑一轮（在项目文件夹里）
-SHIYIN_INVITE=邀请码 node eval/run.mjs https://你的编曲台域名 v1.0
-# 出报告（两个 runs 文件可以互相对比）；0.x 基线见 baseline-0.x.md
-node eval/report.mjs eval/runs/2026-09-27-v1.0.json
+read -r -s -p 'Invitation code: ' SHIYIN_INVITE
+printf '\n'
+export SHIYIN_INVITE
+node eval/run.mjs https://your-app.example.com version-label
+unset SHIYIN_INVITE
+node eval/report.mjs eval/runs/YYYY-MM-DD-version-label.json
 ```
 
-数字只测量事实，不等于好听。报告里的旗标表示"值得去听一下"，最终以试听为准。
+The runner reads `EVAL_TOKEN` from the local `.env` unless it is already in the environment. Evaluation requests bypass the per-IP daily quota, but still respect the site-wide quota and concurrency limit. Enter invitation codes yourself and keep all credentials out of logs and commits.
 
-注意：交给大模型复审的"程序测量"只包含事实和技术错误（时长、小节数、解析不了的写法），不包含音乐好坏的判断。结构和手法由大模型自己决定。
+Use a unique label for every run; the date and label determine the result filename. Run one evaluation at a time and keep the deployed source revision fixed throughout the run. Service restarts clear in-memory jobs.
+
+To compare saved runs:
+
+```bash
+node eval/report.mjs eval/runs/new.json eval/runs/baseline.json
+```
+
+## Interpret the results
+
+The [0.x baseline](./baseline-0.x.md) contains only seven scenes because its run reached the old quota. Compare matching scenes separately from a new full 20-scene run. Retain failed attempts when calculating generation success rates; musical metrics describe the successfully returned plans.
+
+Duration measurements in `metrics.mjs` describe the returned plan before the browser adds fallback sections. Inspect actual browser parsing when assessing final playback duration. Unsupported notation flags indicate output the browser cannot interpret as written; some tokens are skipped, while unsupported chord qualities may be simplified.
+
+The current duration-claim detector treats every time expression in revision notes as a claim. Target ranges and references to a draft's old duration can therefore create false positives. Keep raw report counts and inspect those notes before drawing conclusions about incorrect final-duration claims.
+
+Measurements are factual diagnostics. Listening is required to judge musical quality. The program measurements sent to the model reviewer contain technical facts and errors; musical structure and production decisions remain the model's responsibility. Chinese diagnostic text is retained where it is also part of the production review context.

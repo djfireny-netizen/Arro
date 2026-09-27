@@ -1,6 +1,6 @@
-// 拾音编曲台 · 本地服务
-// 作用：1) 提供网页  2) 代你调用大模型（API Key 只放在本机，不进浏览器）
-// 运行：node server.mjs    需要 Node.js 18 或更高版本，无需安装任何依赖
+// Arro local HTTP service.
+// Serve the interface and call model APIs while keeping credentials on the server.
+// Run with node server.mjs; requires Node.js 18 or later, with no runtime dependencies.
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -11,7 +11,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
-// 读取 .env
+// Load .env.
 const envPath = path.join(DIR, '.env');
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
@@ -23,10 +23,10 @@ if (existsSync(envPath)) {
 const PORT = Number(process.env.PORT || 5178);
 const HOST = process.env.HOST || '0.0.0.0';
 
-// ===== 公开部署时用的保护（本机自己用可以不管）=====
-// 每个 IP 每天最多调用大模型几次；全站每天最多几次；同时最多几个请求在跑
-const PER_IP = Number(process.env.RATE_LIMIT_PER_IP || 0);        // 0 = 不限
-const PER_DAY = Number(process.env.RATE_LIMIT_PER_DAY || 0);      // 0 = 不限
+// ===== Public deployment protections =====
+// Daily generation limits per IP and site-wide, plus a concurrency limit.
+const PER_IP = Number(process.env.RATE_LIMIT_PER_IP || 0);        // 0 means unlimited.
+const PER_DAY = Number(process.env.RATE_LIMIT_PER_DAY || 0);      // 0 means unlimited.
 const MAX_CONC = Number(process.env.MAX_CONCURRENT || 4);
 const ALLOWED = (process.env.ALLOWED_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
@@ -40,7 +40,7 @@ function clientIP(req) {
   }
   return req.socket.remoteAddress || '?';
 }
-// 评测用：请求头带 X-Eval-Token 且与 .env 的 EVAL_TOKEN 一致时，不受"每个 IP 每天几次"的限制（全站每日上限照样生效）
+// A matching X-Eval-Token bypasses the per-IP daily quota; the site-wide quota remains active.
 const EVAL_TOKEN = process.env.EVAL_TOKEN || '';
 const isEval = req => EVAL_TOKEN.length >= 16 && String(req.headers['x-eval-token'] || '') === EVAL_TOKEN;
 function quota(ip, evalRun) {
@@ -57,8 +57,8 @@ function originOK(req) {
   return ALLOWED.some(a => o === a || o.startsWith(a + '/'));
 }
 
-// ===== 邀请码：.env 里写 INVITE_CODES=码1,码2 就会开启；不写就不需要登录 =====
-// 登录成功后浏览器记住 90 天；从 INVITE_CODES 里删掉某个码，用那个码登录的人会被请出去
+// ===== Set comma-separated INVITE_CODES in .env to enable invitation login =====
+// Login lasts 90 days; removing a code invalidates sessions created with that code.
 const INVITE = (process.env.INVITE_CODES || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
 const tok = c => createHash('sha256').update('shiyin-invite:' + c).digest('hex').slice(0, 40);
 const TOKENS = INVITE.map(tok);
@@ -102,7 +102,7 @@ catch(_){e.textContent='网络好像断了，请再试一次'}b.disabled=false;c
 </script></body></html>`;
 }
 
-// 大模型相关的代码在 ai.mjs 里；文件一改动就重新加载，不用重启服务
+// Reload ai.mjs after changes without restarting the service.
 import { statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 let aiMod = null, aiStamp = 0;
@@ -131,7 +131,7 @@ const server = http.createServer(async (req, res) => {
       if (!INVITE.length || !INVITE.includes(code)) { fails.set(ip, n + 1); return send(res, 401, { error: '邀请码不对' }); }
       const secure = TRUST_PROXY || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
       res.setHeader('Set-Cookie', `sy_inv=${tok(code)}; Path=/; Max-Age=${90 * 86400}; HttpOnly; SameSite=Lax${secure}`);
-      console.log(`[登录] ${code.slice(0, 3)}*** 来自 ${ip}`);
+      console.log(`[Login] ${code.slice(0, 3)}*** from ${ip}`);
       return send(res, 200, { ok: true });
     }
     if (!authed(req) && url.pathname !== '/credits' && url.pathname !== '/api/health') {
@@ -171,7 +171,7 @@ const server = http.createServer(async (req, res) => {
       const mood = String(body.mood || '').slice(0, 120).trim();
       const style = /^[a-z]{2,16}$/.test(String(body.style || '')) ? String(body.style) : null;
       if (!mood) return send(res, 400, { error: '请先描述一个画面' });
-      // 整首生成可能要好几分钟：先返回一个任务号，网页每隔几秒来问一次进度，不会被网关超时打断
+      // Long generation jobs return an ID immediately; polling avoids gateway request timeouts.
       const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
       const job = { status: 'running', stage: 'draft', t0: Date.now() };
       jobs.set(id, job);
@@ -198,7 +198,7 @@ const server = http.createServer(async (req, res) => {
 server.requestTimeout = 330000;
 server.listen(PORT, HOST, async () => {
   const { P, KEY } = await AI();
-  console.log(`\n  拾音编曲台已启动：http://localhost:${PORT}`);
-  if (INVITE.length) console.log(`  邀请码：已开启（${INVITE.length} 个）`);
-  console.log(`  大模型：${P.label}（${P.model || '未设置模型'}）${KEY ? '' : ` —— 还没有填 ${P.keyEnv}，目前只能用本地引擎`}\n`);
+  console.log(`\n  Arro is running at http://localhost:${PORT}`);
+  if (INVITE.length) console.log(`  Invitation codes enabled (${INVITE.length})`);
+  console.log(`  Model: ${P.label} (${P.model || 'model not configured'})${KEY ? '' : ` — ${P.keyEnv} is not configured; only the local engine is available`}\n`);
 });

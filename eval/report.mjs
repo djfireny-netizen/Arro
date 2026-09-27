@@ -1,5 +1,5 @@
-// 生成评测报告：node eval/report.mjs eval/runs/新.json [eval/runs/旧.json]
-// 第二个文件可选：给出时和它逐项对比（比如新版本 vs 基线）
+// Generate a report: node eval/report.mjs eval/runs/new.json [eval/runs/baseline.json]
+// The optional second file enables a metric-by-metric comparison with a baseline.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { measure, flags, fmt } from './metrics.mjs';
 
@@ -14,51 +14,51 @@ function summarize(runs) {
   return {
     ms, n: runs.length, ok: ok.length,
     rows: [
-      ['成功率', ok.length / (runs.length || 1), 'pct'],
-      ['两轮都成功（passes=2）', rate(x => x.m.passes >= 2), 'pct'],
-      ['平均生成用时（秒）', avg(x => x.sec), 'n0'],
-      ['实际时长（均值）', avg(x => x.m.structure.playedSec), 'time'],
-      ['时长 < 2:30 需补段落', rate(x => x.m.structure.playedSec < 150), 'pct'],
-      ['段落小节数不是 4/8', rate(x => x.m.structure.barsNot4or8.length > 0), 'pct'],
-      ['复审写的时长与实际不符', rate(x => x.m.consistency.reviewClaimOff > 0), 'pct'],
-      ['复审没写改了什么', rate(x => x.m.consistency.reviewMissing), 'pct'],
-      ['含解析不了的写法（听不到）', rate(x => x.m.consistency.badTokens.length > 0), 'pct'],
-      ['和声组不是 4/8 个和弦', rate(x => x.m.consistency.harmOddLen.length > 0), 'pct'],
-      ['结构：不同曲式数 / 样本数', forms / (ms.length || 1), 'pct'],
-      ['风格：用到的风格数', styles, 'n0'],
-      ['副歌开场的比例', rate(x => x.m.structure.startsWithChorus), 'pct'],
-      ['每首段落数', avg(x => x.m.structure.sections), 'n1'],
-      ['全曲和弦种类', avg(x => x.m.harmony.uniqueChords), 'n1'],
-      ['副歌和弦数', avg(x => x.m.harmony.chorusChords), 'n1'],
-      ['调外和弦比例', avg(x => x.m.harmony.chromaticRatio), 'pct'],
-      ['副歌含常见套路进行', rate(x => x.m.harmony.cliche.length > 0), 'pct'],
-      ['副歌旋律音数', avg(x => x.m.melody.chorus?.notes), 'n1'],
-      ['副歌音域（半音）', avg(x => x.m.melody.chorus?.range), 'n1'],
-      ['副歌级进比例', avg(x => x.m.melody.chorus?.stepRatio), 'pct'],
-      ['副歌节奏自相似（动机感）', avg(x => x.m.melody.chorus?.rhythmSelfSim), 'n2'],
-      ['副歌比主歌高（半音）', avg(x => x.m.melody.chorusAboveVerse), 'n1'],
-      ['律动组数', avg(x => x.m.groove.count), 'n1'],
-      ['用到的制作手法种类', avg(x => x.m.production.distinctMoves), 'n1'],
-      ['每首诊断旗标数', avg(x => x.f.length), 'n1']
+      ['Success rate', ok.length / (runs.length || 1), 'pct'],
+      ['Both passes completed (passes=2)', rate(x => x.m.passes >= 2), 'pct'],
+      ['Mean generation time (seconds)', avg(x => x.sec), 'n0'],
+      ['Mean playback duration', avg(x => x.m.structure.playedSec), 'time'],
+      ['Duration < 2:30 (needs extension)', rate(x => x.m.structure.playedSec < 150), 'pct'],
+      ['Sections with bar counts other than 4/8', rate(x => x.m.structure.barsNot4or8.length > 0), 'pct'],
+      ['Review duration claim mismatch (raw detector)', rate(x => x.m.consistency.reviewClaimOff > 0), 'pct'],
+      ['Missing review change notes', rate(x => x.m.consistency.reviewMissing), 'pct'],
+      ['Unparseable notation (inaudible)', rate(x => x.m.consistency.badTokens.length > 0), 'pct'],
+      ['Harmony groups with lengths other than 4/8', rate(x => x.m.consistency.harmOddLen.length > 0), 'pct'],
+      ['Structure: distinct forms / successful samples', forms / (ms.length || 1), 'pct'],
+      ['Number of styles used', styles, 'n0'],
+      ['Songs opening with a chorus', rate(x => x.m.structure.startsWithChorus), 'pct'],
+      ['Sections per song', avg(x => x.m.structure.sections), 'n1'],
+      ['Distinct chords per song', avg(x => x.m.harmony.uniqueChords), 'n1'],
+      ['Chords in the chorus', avg(x => x.m.harmony.chorusChords), 'n1'],
+      ['Chromatic chord ratio', avg(x => x.m.harmony.chromaticRatio), 'pct'],
+      ['Chorus contains a common progression', rate(x => x.m.harmony.cliche.length > 0), 'pct'],
+      ['Chorus melody notes', avg(x => x.m.melody.chorus?.notes), 'n1'],
+      ['Chorus range (semitones)', avg(x => x.m.melody.chorus?.range), 'n1'],
+      ['Chorus stepwise motion ratio', avg(x => x.m.melody.chorus?.stepRatio), 'pct'],
+      ['Chorus rhythm self-similarity (motif indicator)', avg(x => x.m.melody.chorus?.rhythmSelfSim), 'n2'],
+      ['Chorus above verse (semitones)', avg(x => x.m.melody.chorusAboveVerse), 'n1'],
+      ['Groove groups', avg(x => x.m.groove.count), 'n1'],
+      ['Distinct production moves', avg(x => x.m.production.distinctMoves), 'n1'],
+      ['Diagnostic flags per song', avg(x => x.f.length), 'n1']
     ]
   };
 }
 const show = (v, t) => !isFinite(v) ? '—' : t === 'pct' ? Math.round(v * 100) + '%' : t === 'time' ? fmt(v) : t === 'n0' ? String(Math.round(v)) : v.toFixed(t === 'n2' ? 2 : 1);
 
 const [, , fNew, fOld] = process.argv;
-if (!fNew) { console.log('用法：node eval/report.mjs 新.json [旧.json]'); process.exit(1); }
+if (!fNew) { console.log('Usage: node eval/report.mjs new.json [baseline.json]'); process.exit(1); }
 const A = summarize(load(fNew).runs), B = fOld ? summarize(load(fOld).runs) : null;
-let md = `# 编曲台评测报告\n\n样本：${fNew}（${A.ok}/${A.n} 首成功）${B ? `；对比：${fOld}（${B.ok}/${B.n}）` : ''}\n\n`;
-md += `| 指标 | ${B ? '对比版本 | ' : ''}本版本 |\n|---|${B ? '---|' : ''}---|\n`;
+let md = `# Arro Evaluation Report\n\nSamples: ${fNew}（${A.ok}/${A.n} succeeded）${B ? `; Baseline: ${fOld}（${B.ok}/${B.n}）` : ''}\n\n`;
+md += `| Metric | ${B ? 'Baseline | ' : ''}Current |\n|---|${B ? '---|' : ''}---|\n`;
 A.rows.forEach((r, i) => { md += `| ${r[0]} | ${B ? show(B.rows[i][1], B.rows[i][2]) + ' | ' : ''}${show(r[1], r[2])} |\n`; });
-md += `\n## 逐首\n\n| 意象 | 歌名 | 风格 | 曲式 | 时长 | 和弦种类 | 副歌音数/音域 | 诊断 |\n|---|---|---|---|---|---|---|---|\n`;
+md += `\n## Per-song results\n\n| Scene | Title | Style | Form | Duration | Distinct chords | Chorus notes/range | Diagnostics |\n|---|---|---|---|---|---|---|---|\n`;
 for (const x of A.ms) {
   const c = x.m.melody.chorus;
   md += `| ${x.mood} | ${x.m.title || ''} | ${x.m.style} ${x.m.key} ${x.m.bpm} | ${x.m.structure.form} | ${fmt(x.m.structure.playedSec)} | ${x.m.harmony.uniqueChords} | ${c ? c.notes + '/' + c.range : '—'} | ${x.f.join('；') || '—'} |\n`;
 }
 const fails = load(fNew).runs.filter(r => r.status !== 'done');
-if (fails.length) md += `\n## 失败\n\n` + fails.map(r => `- ${r.mood}：${r.error || r.status}`).join('\n') + '\n';
-md += `\n> 数字只测量事实，不直接等于好听。旗标是"值得去听一下"的提示，最终以试听为准。\n`;
+if (fails.length) md += `\n## Failures\n\n` + fails.map(r => `- ${r.mood}：${r.error || r.status}`).join('\n') + '\n';
+md += `\n> Measurements describe observable properties, not musical quality. Flags identify details worth listening to; listening remains the final check.\n`;
 const out = fNew.replace(/\.json$/, '.md');
 writeFileSync(out, md);
 console.log(md);

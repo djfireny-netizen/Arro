@@ -93,7 +93,7 @@ node eval/report.mjs eval/runs/YYYY-MM-DD-version-label.json
 
 The runner reads `EVAL_TOKEN` from the local `.env` when needed. It bypasses the per-IP daily quota, while the site-wide quota still applies. Results are written to `eval/runs/`, which is excluded from Git. Use a unique label for each run because the same date and label reuse the same output filename.
 
-Measurements cover duration, structure, harmony, melody, grooves, and notation compatibility. They do not produce a single musical quality score; listening remains necessary. See [evaluation notes](./eval/README.md) and the [0.x baseline](./eval/baseline-0.x.md), currently in Chinese.
+Measurements cover duration, structure, harmony, melody, grooves, and notation compatibility. They do not produce a single musical quality score; listening remains necessary. See [evaluation notes](./eval/README.md) and the [0.x baseline](./eval/baseline-0.x.md). Both include links to Chinese translations.
 
 ## Deployment and contribution
 

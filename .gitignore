@@ -1,4 +1,4 @@
-# 密钥：永远不进仓库
+# Credentials: excluded from version control
 .env
 .env.*
 !.env.example
@@ -6,13 +6,13 @@
 *.key
 *.pem
 
-# 部署配置（服务器地址、域名）
+# Private deployment configuration (server address and domains)
 deploy/config.sh
 
-# 本地交接笔记（含服务器与邀请码信息）
+# Local handoff notes containing private deployment and invitation details
 交接*.md
 
-# 杂项
+# Local dependencies, generated results, and temporary files
 node_modules/
 *.log
 .DS_Store
