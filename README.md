@@ -33,7 +33,7 @@ The sound engine combines 30 sampled instruments with Web Audio synthesis. Sampl
 2. **Review:** a second model call reviews and revises that arrangement. Program measurements provide facts such as duration, bar counts, and unsupported notation.
 3. **Playback and export:** the browser interprets the plan, applies its playback constraints and fallbacks, and renders the arrangement.
 
-Musical structure and creative decisions belong to the model. Measurements supplied to the reviewer describe technical facts. The requested duration is 2:40–3:30; actual adherence is measured by the evaluation suite. The browser currently attempts to extend short plans by adding sections.
+Musical structure and creative decisions belong to the model. Measurements supplied to the reviewer describe technical facts. The requested duration is 2:40–3:30; actual adherence is measured by the evaluation suite. The browser preserves the model's section order and reports duration mismatches. Each model pass has at most one targeted technical repair, within a shared 450-second generation deadline. A revision counts as complete only when its full schema, 3–5 change notes, and 160–210-second duration pass validation; otherwise the validated draft is returned with an explicit fallback status. Slash chords such as `5/7` retain their specified bass pitches in playback and MIDI.
 
 The interface shows the producer's concept and revision notes. Two-pass generation typically takes one or two minutes, depending on the model and service. Set `ARRANGE_PASSES=1` for a single draft, or `ARRANGE_MODE=loop` for the older four-bar workflow. Local controls and alternative arrangements respond without an API call.
 
@@ -104,6 +104,7 @@ See [deployment instructions](./DEPLOY.md) for Linux, Nginx, HTTPS, invitation c
 | `index.html` | Interface, arrangement engine, synthesis, playback, and export |
 | `server.mjs` | HTTP service, authentication, quotas, and asynchronous generation jobs |
 | `ai.mjs` | Model providers, prompts, draft generation, and review |
+| `song-contract.mjs` | Plan validation and supported chord notation |
 | `samples/` | Instrument samples and attribution |
 | `deploy/` | Deployment scripts, Nginx configuration, and systemd service |
 | `eval/` | Fixed scenes, measurements, evaluation runner, and reports |

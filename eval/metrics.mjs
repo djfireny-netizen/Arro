@@ -1,3 +1,4 @@
+import { chordSymbol } from '../song-contract.mjs';
 // Arro evaluation metrics.
 // Input: a full-song plan JSON. Output: comparable measurements and diagnostic flags.
 // Inspired by MusPy/mgeval measurements and Libretto's separate diagnostic axes rather than a single total score.
@@ -77,7 +78,8 @@ export function measure(plan) {
   const H = plan.harmony || {}, M = plan.melodies || {}, G = plan.grooves || {};
   const allTok = Object.values(H).flat().map(String);
   const chorusSec = secs.find(x => x.type === 'chorus') || {};
-  const chorusHarm = H[chorusSec.harmony] || H.chorus || [];
+  const chorusValue = H[chorusSec.harmony] || H.chorus;
+  const chorusHarm = Array.isArray(chorusValue) ? chorusValue : [];
   const degSeq = chorusHarm.map(t => { const r = chordRoot(t); return r && !r.acc ? r.deg : 0; }).join('');
   const CLICHE = ['1564', '6415', '1645', '4156', '5641'];
   const halfSame = chorusHarm.length === 8 && chorusHarm.slice(0, 4).join() === chorusHarm.slice(4).join();
@@ -99,8 +101,7 @@ export function measure(plan) {
     for (const t of String(g?.bass || '').trim().split(/[\s,]+/).filter(Boolean)) if (!/^\d+:\d+:(R|5|O|3|b7|6)$/i.test(t)) badTok.push(`bass.${k}:${t}`);
     for (const t of String(g?.chords || '').trim().split(/[\s,]+/).filter(Boolean)) if (!/^\d+:\d+$/.test(t)) badTok.push(`chords.${k}:${t}`);
   }
-  const QUAL = ['', 'm', 'maj', 'M', 'maj7', 'M7', 'm7', '7', '9', 'sus4', 'sus2', '7sus4', 'dim', 'dim7', 'm7b5', 'add9', 'madd9', 'm9', 'maj9', '6', 'm6', 'aug'];
-  for (const [k, v] of Object.entries(H)) for (const t of v || []) { const r = chordRoot(t); if (!r || !QUAL.includes(r.q)) badTok.push(`harmony.${k}:${t}`); }
+  for (const [k, v] of Object.entries(H)) for (const t of Array.isArray(v) ? v : [v]) if (!chordSymbol(t)) badTok.push(`harmony.${k}:${String(t)}`);
   const harmOddLen = Object.entries(H).filter(([, v]) => !Array.isArray(v) || ![4, 8].includes(v.length)).map(([k, v]) => `${k}:${Array.isArray(v) ? v.length : 0}`);
   const playedSec = played * barSec;
   const energies = secs.map(x => +x.energy || 0);
@@ -129,7 +130,7 @@ export function measure(plan) {
 // Diagnostic flags identify passages worth listening to.
 export function flags(m) {
   const f = [];
-  if (m.structure.playedSec < 150) f.push('时长<2:30（网页会补段落）');
+  if (m.structure.playedSec < 150) f.push('时长<2:30（需要制作人继续调整）');
   if (m.structure.barsNot4or8.length) f.push('段落小节数不是 4/8：' + m.structure.barsNot4or8.join(','));
   if (m.consistency.reviewClaimOff) f.push('复审里写的时长和实际不符');
   if (m.consistency.refsMissing.length) f.push('引用了不存在的：' + m.consistency.refsMissing.join(','));
@@ -143,7 +144,7 @@ export function flags(m) {
   if (m.production.unknownMoves.length) f.push('未知手法：' + m.production.unknownMoves.join(','));
   if (m.passes < 2) f.push('复审失败，只有初稿');
   if (m.consistency.reviewMissing) f.push('复审没有写改了什么');
-  if (m.consistency.badTokens.length) f.push(`有 ${m.consistency.badTokens.length} 处写法程序解析不了（会听不到）：` + m.consistency.badTokens.slice(0, 4).join(' '));
+  if (m.consistency.badTokens.length) f.push(`有 ${m.consistency.badTokens.length} 处写法程序未支持（可能跳过或简化）：` + m.consistency.badTokens.slice(0, 4).join(' '));
   if (m.consistency.harmOddLen.length) f.push('和声组不是 4/8 个和弦：' + m.consistency.harmOddLen.join(','));
   return f;
 }

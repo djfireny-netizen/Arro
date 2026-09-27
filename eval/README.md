@@ -35,8 +35,10 @@ node eval/report.mjs eval/runs/new.json eval/runs/baseline.json
 
 The [0.x baseline](./baseline-0.x.md) contains only seven scenes because its run reached the old quota. Compare matching scenes separately from a new full 20-scene run. Retain failed attempts when calculating generation success rates; musical metrics describe the successfully returned plans.
 
-Duration measurements in `metrics.mjs` describe the returned plan before the browser adds fallback sections. Inspect actual browser parsing when assessing final playback duration. Unsupported notation flags indicate output the browser cannot interpret as written; some tokens are skipped, while unsupported chord qualities may be simplified.
+Duration measurements in `metrics.mjs` describe the returned plan. The browser now preserves that plan's form; historical revisions added fallback sections, so record the parser revision when comparing playback. Inspect actual browser parsing when assessing final playback duration. Unsupported notation flags indicate output the browser cannot interpret as written; some tokens are skipped, while unsupported chord qualities may be simplified.
 
 The current duration-claim detector treats every time expression in revision notes as a claim. Target ranges and references to a draft's old duration can therefore create false positives. Keep raw report counts and inspect those notes before drawing conclusions about incorrect final-duration claims.
 
 Measurements are factual diagnostics. Listening is required to judge musical quality. The program measurements sent to the model reviewer contain technical facts and errors; musical structure and production decisions remain the model's responsibility. Chinese diagnostic text is retained where it is also part of the production review context.
+
+Run `node test/song-contract.mjs` to check malformed model responses, bounded repairs, honest review fallback, and timeout/authentication handling without network access. `generation` records draft/review attempt counts; `validation.review` distinguishes complete, failed, and skipped reviews. Program consistency notices are stored separately in `checks`, rather than counted as producer review notes.

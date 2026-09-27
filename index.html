@@ -870,7 +870,7 @@ function chordInfo(a,i){
   }
   const rootPc=mod(a.root+semis[0],12);
   const sharp=!P.fl&&(a.mode==='major'?[0,7,2,9,4,11,6].includes(a.root):[9,4,11,6,1,8].includes(a.root));
-  return {sp:sharp?NOTE_SHARP:NOTE_FLAT,name:(sharp?NOTE_SHARP:NOTE_FLAT)[rootPc]+q,roman:rn,rootPc,pcs:semis.map(s=>mod(a.root+s,12)),degTones,chr:!!P.chr};
+  return {sp:sharp?NOTE_SHARP:NOTE_FLAT,name:(sharp?NOTE_SHARP:NOTE_FLAT)[rootPc]+q,roman:rn,rootPc,bassPc:P.bassRel==null?null:mod(a.root+P.bassRel,12),pcs:semis.map(s=>mod(a.root+s,12)),degTones,chr:!!P.chr};
 }
 
 // Phrase breathing: gaps every two bars, with pickups or delayed entries into the next phrase.
@@ -1187,7 +1187,7 @@ function explainProg(a){
 }
 
 // For model plans, explain all chorus chords factually, including eight-chord groups, using the plan's own concept.
-const progSig=pr=>JSON.stringify((pr||[]).map(p=>[p.deg,p.chr||null,!!p.sev]));
+const progSig=pr=>JSON.stringify((pr||[]).map(p=>[p.deg,p.chr||null,!!p.sev,p.bassRel??null]));
 function chorusFull(a){return a.progFull&&a.progFullSig===progSig(a.prog)?a.progFull:null;}
 function explainPlan(a){
   const full=chorusFull(a)||a.prog, b={...a,prog:full};
@@ -1206,7 +1206,7 @@ function cleanLane(s){s=String(s||'').toLowerCase().replace(/[^xo.]/g,'.');retur
 function fromPlan(p,prev,locked){
   const styleId=STYLES[p.style]?p.style:scoreStyle(String(p.title||''));
   const st=STYLES[styleId];
-  const a={mood:state.mood,styleId,swing:st.swing,sound:st.sound,verb:st.verb,source:'llm'};
+  const a={mood:state.mood,styleId,swing:st.swing,sound:st.sound,verb:st.verb,source:'llm',planned:true};
   const keyIdx=NOTE_NAMES.indexOf(String(p.key||'').replace('♯','#').replace('♭','b').replace(/^([a-g])/,m=>m.toUpperCase()));
   const alias={'Db':1,'D#':3,'Gb':6,'G#':8,'A#':10};
   a.root=keyIdx>=0?keyIdx:(alias[p.key]??pick(st.keys));
@@ -1350,13 +1350,13 @@ function energize(a,e){
 // At higher richness, selected third-in-bass inversions smooth the bass line.
 const NOINV=new Set(['trap','dnb','house','futurebass','chiptune','reggae','afrobeats','blues','rock','funk','synthwave']);
 function bassLine(a,infos){
-  const bpc=infos.map(c=>c.rootPc);
+  const bpc=infos.map(c=>c.bassPc??c.rootPc);
   if(harmLvl()<=.55||NOINV.has(a.styleId)||a.planned) return bpc;   // For model plans, preserve the requested inversion choices.
   const d=(x,y)=>{const k=mod(x-y,12);return Math.min(k,12-k);};
   // The local engine selects at most one inversion per four bars, keeps bar 1 rooted, and favors the smoothest bass line.
   let best=-1,gain=1.5;
   for(let b=1;b<4;b++){
-    const c=infos[b]; if(c.chr) continue;
+    const c=infos[b]; if(c.chr||c.bassPc!=null) continue;
     const nx=infos[(b+1)%4].rootPc, pv=bpc[b-1], third=c.pcs[1];
     const cost=pc=>d(pc,nx)+d(pc,pv)*.6, g=cost(c.rootPc)-cost(third);
     if(d(third,nx)<=2&&d(third,pv)<=2&&g>gain){gain=g;best=b;}
@@ -1418,8 +1418,7 @@ function derive(a){
     for(const [s0,l,r,apm] of bp){
       let midi;
       if(r==='A'){ if(apm!=null) midi=apm; else { let nx=bassRoot((bar+1)%4)-1; while(nx<m-6) nx+=12; while(nx>m+7) nx-=12; midi=nx; } }   // Approach the next chord from a semitone below.
-      else if(r==='R'||r==='O'||bpc[bar]===infos[bar].rootPc) midi=(r==='R'||r==='O'?m:chordRoot(bar))+({'5':7,'O':12,'3':third,'6':9,'b7':10}[r]||0);
-      else midi=m;
+      else midi=(r==='R'||r==='O'?m:chordRoot(bar))+({'5':7,'O':12,'3':third,'6':9,'b7':10,'B7':10}[r]||0);
       const step=bar*16+s0;
       ev.bass[step].push([midi,l,s0%4===0?1:.8]); roll.bass.push({step,len:l,midi});
     }
@@ -1894,6 +1893,14 @@ function variantPlan(a,s,blk,blocks,extra,o){
 const QUAL={'':null,m:[0,3,7],maj:[0,4,7],M:[0,4,7],maj7:[0,4,7,11],M7:[0,4,7,11],m7:[0,3,7,10],'7':[0,4,7,10],'9':[0,4,7,10,14],sus4:[0,5,7],sus2:[0,2,7],'7sus4':[0,5,7,10],dim:[0,3,6],dim7:[0,3,6,9],m7b5:[0,3,6,10],add9:[0,4,7,14],madd9:[0,3,7,14],m9:[0,3,7,10,14],maj9:[0,4,7,11,14],'6':[0,4,7,9],m6:[0,3,7,9],aug:[0,4,8]};
 const QNAME={m:'m',maj:'',M:'',maj7:'maj7',M7:'maj7',m7:'m7','7':'7','9':'9',sus4:'sus4',sus2:'sus2','7sus4':'7sus4',dim:'dim',dim7:'dim7',m7b5:'m7b5',add9:'add9',madd9:'madd9',m9:'m9',maj9:'maj9','6':'6',m6:'m6',aug:'aug'};
 function parseChordTok(tok,mode){
+  // Slash degrees specify a bass pitch in the current key, independently of chord quality.
+  const slash=String(tok).trim().match(/^([^/]+)\/([b#♭♯]?)([1-7])$/);
+  if(slash){
+    const chord=parseChordTok(slash[1],mode), degree=+slash[3]-1;
+    let acc=/[b♭]/.test(slash[2])?-1:/[#♯]/.test(slash[2])?1:0;
+    if(mode==='minor'&&acc===-1&&[2,5,6].includes(degree)) acc=0;
+    return {...chord,bassRel:SCALES[mode][degree]+acc};
+  }
   const m=String(tok).trim().match(/^([b#♭♯]?)([1-7])(.*)$/); if(!m) return {deg:0,sev:false};
   let acc=/[b♭]/.test(m[1])?-1:/[#♯]/.test(m[1])?1:0; const deg=+m[2]-1, q=m[3].trim(), sc=SCALES[mode];
   if(mode==='minor'&&acc===-1&&[2,5,6].includes(deg)) acc=0;   // Minor degrees 3/6/7 are already lowered; interpret b7 as VII in minor.
@@ -1940,7 +1947,7 @@ const MOVE_NAME={fill:'段尾过门',stop:'最后一拍全停',full_stop:'最后
 function fromSongPlan(p,prev,locked){
   const styleId=STYLES[p.style]?p.style:scoreStyle(String(p.title||'')+state.mood);
   const st=STYLES[styleId];
-  const a={mood:state.mood,styleId,swing:st.swing,sound:st.sound,verb:st.verb,source:'llm'};
+  const a={mood:state.mood,styleId,swing:st.swing,sound:st.sound,verb:st.verb,source:'llm',planned:true};
   const keyIdx=NOTE_NAMES.indexOf(String(p.key||'').replace('♯','#').replace('♭','b').replace(/^([a-g])/,m=>m.toUpperCase()));
   const alias={'Db':1,'D#':3,'Gb':6,'G#':8,'A#':10};
   a.root=keyIdx>=0?keyIdx:(alias[p.key]??pick(st.keys));
@@ -1974,22 +1981,10 @@ function fromSongPlan(p,prev,locked){
     return {id:++secId,type,bars,plan:{harmony:planProg[x.harmony]?x.harmony:(planProg[type]?type:Object.keys(planProg)[0]),groove:grooves[x.groove]?x.groove:(Object.keys(grooves)[0]||null),
       play,melody:String(x.melody||'none'),energy:Math.max(0,Math.min(1,+x.energy||.6)),moves:(Array.isArray(x.moves)?x.moves:[]).filter(m=>MOVE_NAME[m]),idea:String(x.idea||'').slice(0,120)}};
   });
-  // Duration fallback: attempt to extend plans shorter than 2:30 by adding sections.
+  // Preserve the producer's form and disclose duration mismatches instead of composing extra sections.
   const extNotes=barNotes.length?[`网页核对：${barNotes.join('；')}。`]:[];
-  {
-    const bpm=clampInt(p.bpm,60,180,100), dur=()=>secs.reduce((n,x)=>n+x.bars,0)*240/bpm, d0=dur();
-    const cp=x=>({id:++secId,type:x.type,bars:x.bars,plan:{...x.plan,moves:x.plan.moves.filter(m=>!['key_up','drop_first_bar','filter_sweep'].includes(m))}});
-    for(let k=0;k<4&&dur()<150;k++){
-      const lc=secs.map(x=>x.type).lastIndexOf('chorus');
-      if(lc<0) break;
-      const fv=secs.find(x=>x.type==='verse'), fp=secs.find(x=>x.type==='pre'), fc=secs.find(x=>x.type==='chorus');
-      const nV=secs.filter(x=>x.type==='verse').length, bi=secs.findIndex(x=>x.type==='bridge');
-      if(k===0){ secs.splice(lc+1,0,cp(secs[lc])); continue; }                          // First repeat the final chorus.
-      if(!fv||nV>=3) break;
-      const cyc=[fv,fp,fc].filter(Boolean).map(cp); secs.splice(bi>0?bi:lc,0,...cyc);   // Then add a verse/pre-chorus/chorus cycle.
-    }
-    if(dur()>d0+1) extNotes.push(`大模型写的整首只有 ${fmtTime(d0)}，网页按流行歌的习惯补了段落，延长到 ${fmtTime(dur())}。`);
-  }
+  const actualDuration=secs.reduce((n,x)=>n+x.bars,0)*240/a.bpm;
+  if(actualDuration<160||actualDuration>210) extNotes.push(`网页核对：当前方案约 ${fmtTime(actualDuration)}，尚未达到 2:40–3:30 的目标范围，保留制作人原有段落。`);
   // Parse each melody using the longest section that references it.
   const planMel={}, maxBars={};
   secs.forEach(x=>{const k=x.plan.melody;maxBars[k]=Math.max(maxBars[k]||0,x.bars);});
@@ -2015,7 +2010,7 @@ function fromSongPlan(p,prev,locked){
   } else setMelody(a,bestMelody(st,a));
   fillMore(a,st,prev,locked);
   a.title=String(p.title||'').slice(0,20); a.concept=String(p.concept||'').slice(0,200);
-  a.review=(Array.isArray(p.review)?p.review:[]).map(x=>String(x).slice(0,120)).slice(0,6).concat(extNotes);
+  a.review=(Array.isArray(p.review)?p.review:[]).map(x=>String(x).slice(0,120)).slice(0,6).concat((Array.isArray(p.checks)?p.checks:[]).map(String),extNotes);
   a.passes=p.passes||1;
   a.fromSong=true; a.progFull=cp.length>4?cp.slice(0,8):null; a.progFullSig=progSig(a.prog);
   a.explain=explainFor(a);
@@ -3331,6 +3326,6 @@ state.mood=$('mood').value;
 state.arr=compose(state.mood,scoreStyle(state.mood),null,{});
 state.verStarOnly=false;
 render(); setStatus(); detectBackend(); updUndo(); renderVersions();
-window.__shiyin={state,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
+window.__shiyin={state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
 })();
 </script>

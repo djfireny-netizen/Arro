@@ -69,7 +69,31 @@ try {
     const p = j.plan; p.sections[p.sections.length - 1].bars = 2;
     const a = __shiyin.fromSongPlan(p, null, {}).arr; return a.review.filter(x => x.includes('网页核对'));
   });
-  ok('Non-4/8 bar counts are disclosed accurately', odd.length === 1 && odd[0].includes('2 小节'), odd.join(''));
+  ok('Non-4/8 bar counts are disclosed accurately', odd.filter(x => x.includes('2 小节')).length === 1, odd.join(''));
+  // Verify explicit bass degrees through event generation and the exported MIDI note stream.
+  const inversion = await page.evaluate(() => {
+    const api=__shiyin, a=structuredClone(api.state.arr);
+    a.root=0; a.mode='major'; a.styleId='synthwave'; a.planned=true;
+    a.prog=['5/7','1/3','4/#4','1'].map(t=>api.parseChordTok(t,a.mode));
+    a.bass={...a.bass,pat:[[0,16,'R']],approach:false};
+    const d=api.derive(a);
+    const midi=api.midiFile(a,['bass'],null,'INVERSION-TEST');
+    let found=false;
+    for(let i=0;i<midi.length-2;i++) if(midi[i]===0x90&&midi[i+1]===35&&midi[i+2]>0) found=true;
+    const minor=api.parseChordTok('1m7/b3','minor');
+    return {bass:d.roll.bass.filter(n=>n.step%16===0).map(n=>n.midi%12),name:d.infos[0].name,found,minorBass:minor.bassRel};
+  });
+  ok('Slash chords preserve specified bass pitches and chord names', JSON.stringify(inversion.bass)==='[11,4,6,0]' && inversion.name==='G/B' && inversion.minorBass===3, JSON.stringify(inversion));
+  ok('MIDI export preserves the explicit B bass for G/B', inversion.found);
+  const shortPlan = await page.evaluate(() => {
+    const api=__shiyin;
+    const p={title:'短方案',style:'synthwave',key:'C',mode:'major',bpm:120,
+      harmony:{A:['1','4','5','1']},grooves:{A:{drums:{},bass:'0:16:R',chords:'0:16'}},melodies:{},
+      sections:[{type:'verse',bars:4,harmony:'A',groove:'A',melody:'none',play:['bass'],moves:[]},{type:'chorus',bars:4,harmony:'A',groove:'A',melody:'none',play:['bass'],moves:[]}]};
+    const parsed=api.fromSongPlan(p,null,{});
+    return {count:parsed.song.length,review:parsed.arr.review};
+  });
+  ok('Short plans retain the producer form and disclose their duration', shortPlan.count===2 && shortPlan.review.some(x=>x.includes('0:16')&&x.includes('保留制作人原有段落')), JSON.stringify(shortPlan));
   ok('No browser errors', errs.length === 0, errs.join(' | ').slice(0, 300));
 } catch (e) { ok('Test execution error', false, String(e.message).slice(0, 300)); }
 await browser.close(); srv.kill();

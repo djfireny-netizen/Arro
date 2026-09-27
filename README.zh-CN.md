@@ -120,3 +120,7 @@ node eval/report.mjs eval/runs/<日期>-v1.0.json                      # 出报�
 ## 参考
 
 评测和"生成 → 测量 → 修正"的思路参考了 [Libretto](https://github.com/Xyc-arch/Libretto)、[MusPy](https://github.com/salu133445/muspy)、[mgeval](https://github.com/RichardYang40148/mgeval)。
+
+### 方案完整性与时长核对
+
+每轮模型调用最多进行一次有具体错误反馈的格式修复，整次生成共用 450 秒时限。复审须返回完整方案、3–5 条修改说明，且实际时长在 2:40–3:30 范围内；否则保留已通过格式校验的初稿并明确说明。网页保留制作人的段落结构，显示实际时长。`5/7` 等转位和弦的指定低音会保留到播放和 MIDI 导出中。

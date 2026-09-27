@@ -2,6 +2,7 @@
 // Changes are reloaded on the next request; a service restart is unnecessary.
 
 import { measure, flags, fmt, playedBars } from './eval/metrics.mjs';
+import { planIssues } from './song-contract.mjs';
 
 // Switchable model providers using OpenAI-compatible APIs.
 const PROVIDERS = {
@@ -185,7 +186,9 @@ const MOCK_SONG = {"title":"午夜环线","concept":"一个人夜里开车绕城
  {"type":"outro","bars":8,"harmony":"chorus","groove":"H","play":["pad","arp","bass","melody"],"melody":"post","energy":0.3,"moves":[],"idea":"尾奏把记忆点轻轻再唱一遍，慢慢熄灭。"}],
 "review":["演示数据：把第二段主歌改成半速，和第一段拉开差别","演示数据：第二遍副歌结尾加了两拍全停，给桥段让路","演示数据：最后一遍副歌第一小节先空一下再升调，冲击更大"]};
 
-async function callLLM(system, user, temperature) {
+async function callLLM(system, user, temperature, deadline = Infinity) {
+  const timeout = Math.min(Number(process.env.LLM_TIMEOUT || 240000), deadline - Date.now());
+  if (timeout <= 0) throw new Error('生成已达到时间上限');
   const body = {
     model: P.model, temperature, max_tokens: 8000,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
@@ -197,44 +200,63 @@ async function callLLM(system, user, temperature) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + KEY },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(Number(process.env.LLM_TIMEOUT || 240000))
+    signal: AbortSignal.timeout(Math.ceil(timeout))
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((j.error && (j.error.message || j.error.code)) || j.message || ('HTTP ' + r.status));
+  if (!r.ok) throw Object.assign(new Error((j.error && (j.error.message || j.error.code)) || j.message || ('HTTP ' + r.status)), { status: r.status });
   return parseJSON(j.choices?.[0]?.message?.content);
 }
-const validSong = p => p && Array.isArray(p.sections) && p.sections.length >= 2 && p.harmony && p.melodies && p.grooves;
+// A repair includes concrete contract failures and the previous response, with a bounded call budget.
+const repairRequest = (request, candidate, issues) => `${request}\n\n【返回格式和演奏数据核对】\n${issues.slice(0, 30).join('\n')}\n请修复这些具体问题，并返回包含全部字段的完整方案 JSON。音乐处理由你决定。${candidate ? `\n上次返回：\n${JSON.stringify(candidate)}` : ''}`;
+const retryable = e => ![401, 403, 429].includes(e?.status) && !/timeout|aborted|时间上限|HTTP (401|403|429)/i.test(String(e?.name) + String(e?.message));
 
-// Two passes: producer draft, followed by a critical producer review and revision.
+// Two musical passes, with at most one technical repair per pass and a shared deadline.
 async function arrangeSong(mood, style, onStage = () => {}) {
   if (PROVIDER === 'mock') {
     await new Promise(r => setTimeout(r, 900));
-    return { ...MOCK_SONG, title: '演示：' + mood.slice(0, 8), passes: 2 };
+    return { ...structuredClone(MOCK_SONG), title: '演示：' + mood.slice(0, 8), passes: 2 };
   }
-  const ask = `画面或心情：${mood}${style ? `\n指定风格：${style}（style 必须填这个）` : ''}\n请输出整首歌的编曲方案 JSON。`;
-  let draft = null, err = null;
+  const deadline = Date.now() + 450000;
+  const generation = { draftAttempts: 0, reviewAttempts: 0 };
+  const ask = `画面或心情：${mood}${style ? `\n指定风格：${style}（style 必须填这个）` : ''}\n记谱支持转位和弦：斜线后的级数是当前调式中的低音，例如 5/7、1m7/b3。\n请输出整首歌的编曲方案 JSON。`;
+  let draft, candidate, issues = [], lastError;
   onStage('draft');
-  for (let i = 0; i < 2 && !validSong(draft); i++) {
-    try { draft = await callLLM(SONG_SYSTEM, ask, 1.0); }
-    catch (e) { err = e; if (/timeout|aborted/i.test(String(e && (e.name + e.message)))) break; }   // Stop retrying after a timeout to avoid doubling the wait.
+  for (let i = 0; i < 2; i++) {
+    try {
+      generation.draftAttempts++;
+      candidate = await callLLM(SONG_SYSTEM, i ? repairRequest(ask, candidate, issues) : ask, 1.0, deadline);
+      if (style && candidate && typeof candidate === 'object') candidate.style = style;
+      issues = planIssues(candidate);
+      if (!issues.length) { draft = candidate; break; }
+    } catch (e) {
+      lastError = e; issues = ['返回须为可解析的完整 JSON 对象'];
+      if (!retryable(e)) break;
+    }
   }
-  if (!validSong(draft)) throw err || new Error('大模型没有返回完整的整首方案');
-  if (style) draft.style = style;
-  if (process.env.ARRANGE_PASSES === '1') return finalize({ ...draft, passes: 1 });
+  if (!draft) throw lastError || new Error('大模型没有返回有效的整首方案：' + issues.slice(0, 3).join('；'));
+  const draftDurationOK = planIssues(draft, { duration: true }).length === 0;
+  if (process.env.ARRANGE_PASSES === '1') return finalize({ ...draft, passes: 1, generation,
+    validation: { schema: true, review: 'skipped', durationWithinTarget: draftDurationOK } });
   onStage('review', draft);
-  let why = '';
-  try {
-    const fixed = await callLLM(CRITIC_SYSTEM, `画面或心情：${mood}\n初稿：\n${JSON.stringify(draft)}\n\n${measureText(draft)}`, 0.7);
-    // Some models return partial revisions; merge them with the draft and retain omitted fields.
-    const merged = { ...draft, ...fixed,
-      harmony: { ...draft.harmony, ...(fixed.harmony || {}) },
-      grooves: { ...draft.grooves, ...(fixed.grooves || {}) },
-      melodies: { ...draft.melodies, ...(fixed.melodies || {}) },
-      sections: Array.isArray(fixed.sections) && fixed.sections.length >= 2 ? fixed.sections : draft.sections };
-    if (validSong(merged)) { if (style) merged.style = style; return finalize({ ...merged, passes: 2, draftTitle: draft.title }); }
-    why = '返回的方案不完整';
-  } catch (e) { why = String(e && e.message || e).slice(0, 80); console.error('[Second-pass revision failed]', why); }
-  return finalize({ ...draft, passes: 1, review: [`第二轮修改没有成功（${why}），这是初稿。`] });
+  const request = `画面或心情：${mood}\n初稿：\n${JSON.stringify(draft)}\n\n${measureText(draft)}`;
+  candidate = undefined; issues = [];
+  for (let i = 0; i < 2; i++) {
+    try {
+      generation.reviewAttempts++;
+      candidate = await callLLM(CRITIC_SYSTEM, i ? repairRequest(request, candidate, issues) : request, 0.7, deadline);
+      if (style && candidate && typeof candidate === 'object') candidate.style = style;
+      issues = planIssues(candidate, { review: true, duration: true });
+      if (!issues.length) return finalize({ ...candidate, passes: 2, draftTitle: draft.title, generation,
+        validation: { schema: true, review: 'complete', durationWithinTarget: true } });
+    } catch (e) {
+      issues = ['复审请求或 JSON 解析失败'];
+      if (!retryable(e)) break;
+    }
+  }
+  // Preserve only the validated draft when a complete revision cannot be obtained.
+  return finalize({ ...draft, passes: 1, generation,
+    validation: { schema: true, review: 'failed', durationWithinTarget: draftDurationOK },
+    review: [`第二轮修改未通过完整性核对（${issues.slice(0, 3).join('；')}），当前保留初稿。`] });
 }
 
 /* ============ Program measurements: factual review context and output consistency ============ */
@@ -261,9 +283,8 @@ function finalize(plan) {
   }
   const m = measure(plan), real = m.structure.playedSec;
   const review = Array.isArray(plan.review) ? plan.review.slice() : [];
-  if (m.consistency.reviewClaimOff) review.push(`程序核对：最终整首约 ${fmt(real)}（上面提到的时长是大模型的估算，以这里为准）。`);
-  if (notes.length) review.push(`程序核对：${notes.join('；')}。`);
-  return { ...plan, review, measured: { sec: real, bars: m.structure.playedBars } };
+  if (m.consistency.reviewClaimOff) notes.push(`最终整首约 ${fmt(real)}（复审中的时长声明请以实际测量为准）`);
+  return { ...plan, review, checks: notes.map(x => `程序核对：${x}。`), measured: { sec: real, bars: m.structure.playedBars } };
 }
 
 function parseJSON(text) {
