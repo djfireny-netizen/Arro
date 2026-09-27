@@ -75,14 +75,17 @@ function authed(req) {
 }
 function loginPage() {
   const icp = process.env.ICP_NUMBER || '';
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>拾音编曲台</title>
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ARRO · 编曲台</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/arro-icon-v4-32.png">
+<link rel="icon" type="image/svg+xml" href="/brand/arro-icon-v4.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/arro-icon-v4-180.png">
 <style>
 :root{--bg:#e4e5e0;--card:#f3f3ef;--ink:#18191b;--mute:#6b6d70;--line:#c9cac4;--acc:#18191b;--accInk:#f3f3ef;--err:#b3261e}
 @media (prefers-color-scheme:dark){:root{--bg:#141516;--card:#1d1e20;--ink:#ecece8;--mute:#9a9c9f;--line:#34363a;--acc:#ecece8;--accInk:#141516;--err:#ff8a80}}
 *{box-sizing:border-box}html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
 .card{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 24px}
-h1{font-size:22px;margin:0 0 4px;letter-spacing:.02em}p{margin:0 0 20px;color:var(--mute);font-size:14px}
+h1{font-size:22px;margin:0 0 18px;letter-spacing:.02em}h1 img{display:block;width:140px;height:auto}p{margin:0 0 20px;color:var(--mute);font-size:14px}
 input{width:100%;font:inherit;font-size:17px;letter-spacing:.08em;text-transform:uppercase;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);outline:none}
 input:focus{border-color:var(--ink)}
 button{width:100%;margin-top:12px;font:inherit;font-weight:600;padding:11px;border:0;border-radius:9px;background:var(--acc);color:var(--accInk);cursor:pointer}
@@ -90,7 +93,7 @@ button:disabled{opacity:.5}
 .err{color:var(--err);font-size:13px;min-height:20px;margin-top:10px}
 footer{margin-top:24px;font-size:12px;color:var(--mute)}footer a{color:inherit}
 </style></head><body>
-<form class="card" id="f"><h1>拾音编曲台</h1><p>目前是邀请制，请输入邀请码</p>
+<form class="card" id="f"><h1><img src="/brand/arro-wordmark-v4.svg" alt="ARRO" width="140" height="44"></h1><p>目前是邀请制，请输入邀请码</p>
 <input id="c" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="邀请码" autofocus>
 <button id="b">进入</button><div class="err" id="e"></div></form>
 ${icp ? `<footer><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">${icp.replace(/</g, '&lt;')}</a></footer>` : ''}
@@ -120,6 +123,19 @@ function send(res, code, data, type = 'application/json; charset=utf-8') {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
+    // Only these public brand assets are available before invitation login.
+    const brandFiles = {
+      '/brand/arro-wordmark-v4.svg': 'image/svg+xml',
+      '/brand/arro-icon-v4.svg': 'image/svg+xml',
+      '/brand/arro-icon-v4-32.png': 'image/png',
+      '/brand/arro-icon-v4-180.png': 'image/png',
+    };
+    if ((req.method === 'GET' || req.method === 'HEAD') && Object.hasOwn(brandFiles, url.pathname)) {
+      const bytes = await readFile(path.join(DIR, 'site', url.pathname.slice(1)));
+      res.writeHead(200, { 'Content-Type': brandFiles[url.pathname], 'Content-Length': bytes.length,
+        'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(req.method === 'HEAD' ? undefined : bytes);
+    }
     const { P, KEY, PROVIDER, arrange } = await AI();
     if (req.method === 'POST' && url.pathname === '/api/login') {
       const ip = clientIP(req), n = fails.get(ip) || 0;

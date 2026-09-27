@@ -1,4 +1,7 @@
-<title>拾音编曲台</title>
+<title>ARRO · 编曲台</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/arro-icon-v4-32.png">
+<link rel="icon" type="image/svg+xml" href="/brand/arro-icon-v4.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/arro-icon-v4-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
@@ -43,9 +46,7 @@ button{cursor:pointer}
 /* top */
 .top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:12px}
-.caps{display:grid;grid-template-columns:repeat(2,9px);gap:3px}
-.caps i{width:9px;height:9px;border-radius:2px;display:block}
-.brand b{font-weight:900;font-size:26px;letter-spacing:-.01em;line-height:1}
+.brand .wordmark{display:block;width:102px;height:auto;flex-shrink:0}
 .brand span{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);letter-spacing:.06em}
 .top-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .engine{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);padding:6px 10px;border:1px solid var(--line);border-radius:3px;background:var(--panel)}
@@ -305,8 +306,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
 <div class="app">
   <header class="top">
     <div class="brand">
-      <div class="caps" aria-hidden="true"><i style="background:var(--c-drums)"></i><i style="background:var(--c-bass)"></i><i style="background:var(--c-chords)"></i><i style="background:var(--c-melody)"></i></div>
-      <b>拾音</b>
+      <img class="wordmark" src="/brand/arro-wordmark-v4.svg" alt="ARRO" width="102" height="32">
       <span>编曲台 · 1.0</span><em class="aigc" title="页面上的编曲和导出的文件由人工智能生成">AI 生成</em>
     </div>
     <div class="top-r">
@@ -2408,7 +2408,7 @@ function setMode(m,from){
 
 /* ============ AI-generated content labels: Chinese labeling rules / GB 45438-2025 ============ */
 // Implicit labels use AIGC metadata; explicit labels use an audible Morse AI marker and text notices.
-const AIGC_PRODUCER='拾音编曲台 '+location.host;
+const AIGC_PRODUCER='ARRO '+location.host;
 const AIGC_TEXT=`本作品由人工智能生成（${AIGC_PRODUCER}）`;
 function aigcId(){return 'SY'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,8).toUpperCase();}
 function aigcJSON(id){return JSON.stringify({AIGC:{Label:'1',ContentProducer:AIGC_PRODUCER,ProduceID:id,ReservedCode1:'',ContentPropagator:'',PropagateID:'',ReservedCode2:''}});}
@@ -2444,7 +2444,7 @@ function midiFile(a,which,D,aid){
   const meta=[{t:0,o:0,d:[0xFF,0x51,0x03,(us>>16)&255,(us>>8)&255,us&255]},{t:0,o:0,d:[0xFF,0x58,0x04,4,2,24,8]},{t:0,o:0,d:[0xFF,0x59,0x02,sf&255,a.mode==='minor'?1:0]}];
   (D.markers||[]).forEach(m=>{const b=utf8(m.name);meta.push({t:m.step*T,o:0,d:[0xFF,0x06,...vlq(b.length),...b]});});
   for(const txt of [AIGC_TEXT,aigcJSON(aid||aigcId())]){const b=utf8(txt);meta.push({t:0,o:0,d:[0xFF,0x01,...vlq(b.length),...b]});}
-  const tracks=[mtrk('拾音 · '+STYLES[a.styleId].name,meta)];
+  const tracks=[mtrk('ARRO · '+STYLES[a.styleId].name,meta)];
   // Write swing/shuffle offsets into MIDI so DAW playback matches the browser.
   const sw=t=>{const st=Math.round(t/T);return st*T===t?Math.round(swingOff(st,1)*T):0;};
   const note=(evs,ch,t,len,m,v)=>{m=Math.max(0,Math.min(127,m));t+=sw(t);evs.push({t,o:1,d:[0x90|ch,m,v]},{t:t+len,o:0,d:[0x80|ch,m,0]});};
@@ -2505,7 +2505,7 @@ function zip(files){
 // Chord chart: harmony by section and bar for performers and songwriting.
 function leadSheet(a){
   const S=state.S, st=STYLES[a.styleId], L=[];
-  L.push(`拾音编曲台 · ${st.name}`);
+  L.push(`ARRO · ${st.name}`);
   L.push(`调：${NOTE_NAMES[a.root]}${a.mode==='minor'?' 小调':' 大调'}　速度：${a.bpm} BPM　拍号：4/4　共 ${S.bars} 小节`);
   if(state.mood) L.push(`画面：${state.mood}`);
   L.push('');
@@ -2520,7 +2520,7 @@ function leadSheet(a){
 }
 function aigcNote(id){return new TextEncoder().encode(`${AIGC_TEXT}\n内容编号：${id}\n\n按照《人工智能生成合成内容标识办法》，这个压缩包里的文件带有 AI 生成标识：\n- MIDI：首轨里有一条文字事件写明"人工智能生成"，并带 AIGC 元数据；\n- WAV：文件信息（LIST/INFO）里带 AIGC 元数据，音频末尾有一段"短长 短短"的提示音（摩斯码 AI）。\n再次发布时请保留这些标识。\n`);}
 function buildExport(a){
-  const base=`拾音_${NOTE_NAMES[a.root]}${a.mode==='minor'?'m':''}_${a.bpm}BPM`, id=aigcId();
+  const base=`ARRO_${NOTE_NAMES[a.root]}${a.mode==='minor'?'m':''}_${a.bpm}BPM`, id=aigcId();
   const D=derive(a);
   const files=[{name:`${base}_整首歌曲_${state.S.bars}小节.mid`,data:midiFile(a,LAYERS,state.S,id)},{name:base+'_循环_全部.mid',data:midiFile(a,LAYERS,D,id)}];
   LAYERS.filter(L=>D.roll[L].length).forEach(L=>files.push({name:`${base}_循环_${META[L].name}.mid`,data:midiFile(a,[L],D,id)}));
@@ -2622,7 +2622,7 @@ function sunoGuide(){
   });
   const theme=`${(state.mood||'').replace(/[。.！!]+$/,'')}${a.title?`（歌名可以参考《${a.title.replace(/^演示：/,'')}》）`:''}`.slice(0,160);
   const T=[];
-  T.push(`拾音编曲台 · 给 Suno 的改编包${a.title?`《${a.title}》`:''}`);
+  T.push(`ARRO · 给 Suno 的改编包${a.title?`《${a.title}》`:''}`);
   T.push(`${st.name} · ${key} · ${a.bpm} BPM · ${fmtTime(S.bars*bar)}`);
   T.push('');
   T.push('一、上传哪个文件');
@@ -2655,7 +2655,7 @@ function sunoGuide(){
 async function exportSuno(){
   if(rendering) return; rendering=true; $('wavMenu').hidden=true;
   const btn=$('wavBtn'), old=btn.innerHTML;
-  const base=`拾音_给Suno_${NOTE_NAMES[state.arr.root]}${state.arr.mode==='minor'?'m':''}_${state.arr.bpm}BPM`;
+  const base=`ARRO_给Suno_${NOTE_NAMES[state.arr.root]}${state.arr.mode==='minor'?'m':''}_${state.arr.bpm}BPM`;
   try{
     btn.disabled=true;
     const g=await renderAudio(null,f=>{btn.textContent=`引导版 ${Math.round(f*100)}%`;},{guide:true});
@@ -2669,7 +2669,7 @@ async function exportSuno(){
 async function exportWav(stems){
   if(rendering) return; rendering=true; $('wavMenu').hidden=true;
   const btn=$('wavBtn'), old=btn.innerHTML;
-  const base=`拾音_${NOTE_NAMES[state.arr.root]}${state.arr.mode==='minor'?'m':''}_${state.arr.bpm}BPM`;
+  const base=`ARRO_${NOTE_NAMES[state.arr.root]}${state.arr.mode==='minor'?'m':''}_${state.arr.bpm}BPM`;
   try{
     btn.disabled=true; btn.textContent='准备中…';
     if(!stems){

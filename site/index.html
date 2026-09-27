@@ -4,12 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#030716">
-<meta property="og:title" content="拾音编曲台">
+<meta property="og:title" content="ARRO">
 <meta property="og:description" content="从一句话，到一首歌。由大模型担任制作人的编曲工作室。">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23030716'/%3E%3Cpath d='M8 32c6-14 10-14 16 0s10 14 16 0 10-14 16 0' fill='none' stroke='%235B7CFF' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M8 32c6 14 10 14 16 0s10-14 16 0 10 14 16 0' fill='none' stroke='%2334D6A6' stroke-width='4' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/arro-icon-v4-32.png">
+<link rel="icon" type="image/svg+xml" href="/brand/arro-icon-v4.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/arro-icon-v4-180.png">
 <style>[hidden]{display:none!important}</style>
-<title>拾音编曲台</title>
-<meta name="description" content="拾音编曲台：描述一个画面，由大模型担任制作人，写下和声、律动、旋律与整首曲式，导出分轨 MIDI 与音频。">
+<title>ARRO</title>
+<meta name="description" content="ARRO：描述一个画面，由大模型担任制作人，写下和声、律动、旋律与整首曲式，导出分轨 MIDI 与音频。">
 <style>
 /* A single dark palette evokes a recording studio with the lights off. */
 :root{
@@ -35,9 +37,8 @@ a{color:inherit}
 /* ---------- Top bar ---------- */
 .top{position:fixed;left:0;right:0;top:0;z-index:30;padding-top:env(safe-area-inset-top,0px);background:linear-gradient(var(--bg),rgba(3,7,22,0));}
 .top .wrap{display:flex;align-items:center;gap:28px;height:64px}
-.logo{display:flex;align-items:baseline;gap:10px;text-decoration:none}
-.logo b{font:500 20px/1 var(--serif);letter-spacing:.12em}
-.logo span{font:400 10px/1 var(--mono);color:var(--mute);letter-spacing:.3em}
+.logo{display:flex;align-items:center;text-decoration:none;flex-shrink:0}
+.logo img{display:block;width:112px;height:auto}
 .nav{display:flex;gap:22px;margin-left:auto}
 .nav a{font:400 12px/1 var(--mono);letter-spacing:.14em;color:var(--mute);text-decoration:none;transition:color .2s}
 .nav a:hover,.nav a.on{color:var(--ink)}
@@ -199,7 +200,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
 
 <header class="top">
   <div class="wrap">
-    <a class="logo" href="#top" aria-label="拾音编曲台"><b>拾音</b><span>SHIYIN</span></a>
+    <a class="logo" href="#top" aria-label="ARRO 首页"><img src="/brand/arro-wordmark-v4.svg" alt="ARRO" width="112" height="35"></a>
     <nav class="nav" aria-label="页面导航">
       <a href="#top"><i>01</i>声场</a><a href="#flow"><i>02</i>流程</a><a href="#form"><i>03</i>结构</a><a href="#out"><i>04</i>导出</a><a href="#rules"><i>05</i>原则</a>
     </nav>
@@ -214,7 +215,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
   <div class="wrap hero-txt">
     <div class="kicker">AI ARRANGEMENT STUDIO</div>
     <h1><span class="ln"><span>从一句话</span></span><span class="ln"><span><b class="nw">到<em>一首歌</em></b></span></span></h1>
-    <p class="sub">拾音是一间由大模型坐镇的编曲工作室。你描述一个画面，它以制作人的判断写下和声、律动、旋律与整首曲式，再亲自复审一遍。推子在你手里，终稿由你来定。</p>
+    <p class="sub">ARRO是一间由大模型坐镇的编曲工作室。你描述一个画面，它以制作人的判断写下和声、律动、旋律与整首曲式，再亲自复审一遍。推子在你手里，终稿由你来定。</p>
     <div class="hero-cta"><a class="btn" href="https://music.aitown.me/">进入编曲台 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a><small>邀请制开放中</small></div>
   </div>
 
@@ -316,14 +317,14 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
   <div class="wrap">
     <div class="lbl"><b>06</b>CODA</div>
     <h2><span class="ph">下一首</span> <span class="ph">从这里开始</span></h2>
-    <p class="lede">拾音以邀请制开放。你创作的每一个音符，都归你所有。</p>
+    <p class="lede">ARRO以邀请制开放。你创作的每一个音符，都归你所有。</p>
     <div class="ratio">曲线是两个音同时鸣响的形状 · <b id="ratio">纯五度 3 : 2</b></div>
     <a class="btn" href="https://music.aitown.me/">输入邀请码，进入编曲台 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg></a>
   </div>
 </section>
 </main>
 
-<footer><div class="wrap"><span>© 2026 拾音编曲台 · MUSIC.AITOWN.ME</span><span><a href="https://music.aitown.me/credits">采样来源与授权</a> · <a href="https://beian.miit.gov.cn/">浙ICP备2026029742号-1</a></span></div></footer>
+<footer><div class="wrap"><span>© 2026 ARRO · MUSIC.AITOWN.ME</span><span><a href="https://music.aitown.me/credits">采样来源与授权</a> · <a href="https://beian.miit.gov.cn/">浙ICP备2026029742号-1</a></span></div></footer>
 
 <script>const HARM={"synthwave": [[1.0, 0.61, 0.59, 0.442], [0.715, 0.907, 0.732, 1.0], [1.0, 0.932, 0.616, 0.561], [1.0, 0.672, 0.59, 0.506]], "citypop": [[0.777, 0.864, 1.0, 0.869], [0.857, 0.816, 1.0, 0.749], [0.981, 0.879, 1.0, 0.928], [0.766, 0.904, 0.86, 1.0]], "lofi": [[0.912, 0.889, 1.0, 0.928], [0.854, 0.856, 1.0, 0.852], [1.0, 0.956, 0.877, 0.904], [0.891, 0.852, 0.889, 1.0]], "guofeng": [[0.996, 0.953, 1.0, 0.986], [0.941, 1.0, 0.772, 1.0], [0.94, 0.813, 1.0, 0.997], [0.859, 0.949, 1.0, 0.94]]};</script>
 <script>

@@ -1,4 +1,6 @@
-# Arro
+![ARRO](./site/brand/arro-wordmark-v4.svg)
+
+# ARRO
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 

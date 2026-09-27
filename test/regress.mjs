@@ -16,10 +16,25 @@ const B = `http://127.0.0.1:${PORT}`;
 try {
   await page.goto(B);
   ok('Login page requests an invitation code', (await page.textContent('body')).includes('请输入邀请码'));
+  const publicBrand = await page.evaluate(async () => {
+    const paths = ['/brand/arro-wordmark-v4.svg', '/brand/arro-icon-v4.svg', '/brand/arro-icon-v4-32.png', '/brand/arro-icon-v4-180.png'];
+    const results = await Promise.all(paths.map(async path => {
+      const r = await fetch(path); const bytes = new Uint8Array(await r.arrayBuffer());
+      return r.ok && (path.endsWith('.svg') ? r.headers.get('content-type') === 'image/svg+xml' && new TextDecoder().decode(bytes).includes('<svg') : r.headers.get('content-type') === 'image/png' && bytes[0] === 137 && bytes[1] === 80);
+    }));
+    const protectedPage = await fetch('/brand/.env');
+    return results.every(Boolean) && protectedPage.status === 401;
+  });
+  ok('Public brand assets load before login while unlisted paths stay protected', publicBrand);
+  await page.waitForFunction(() => document.querySelector('h1 img')?.naturalWidth > 0);
+  ok('Login uses the ARRO wordmark', await page.getAttribute('h1 img', 'alt') === 'ARRO' && (await page.title()).startsWith('ARRO'));
+
   await page.fill('#c', 'wrong'); await page.click('#b'); await page.waitForTimeout(400);
   ok('Invalid invitation code is rejected', (await page.textContent('#e')).includes('不对'));
   await page.fill('#c', 'test-code-1'); await page.click('#b'); await page.waitForLoadState('load'); await page.waitForTimeout(1500);
   const top = await page.textContent('.brand');
+  await page.waitForFunction(() => document.querySelector('.brand img')?.naturalWidth > 0);
+  ok('Studio uses the ARRO wordmark', await page.getAttribute('.brand img', 'alt') === 'ARRO');
   ok('Header shows version 1.0 and AI generation label', top.includes('1.0') && top.includes('AI 生成') && !top.includes('原型'), top.trim());
   ok('Footer discloses AI-generated content', (await page.textContent('body')).includes('编曲内容由人工智能生成'));
   const credits = await page.evaluate(() => fetch('/credits').then(r => r.text()));

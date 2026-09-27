@@ -1,6 +1,8 @@
+![ARRO](./site/brand/arro-wordmark-v4.svg)
+
 [English](./README.md) | 简体中文
 
-# Arro · 拾音编曲台
+# ARRO
 
 **Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the whole song (form, harmony, grooves, melodies, production moves), then reviews and revises its own draft. You tweak it with a few sliders and export multitrack MIDI and audio into your DAW. The UI is in Chinese; the code runs anywhere with Node.js 18+.
 
