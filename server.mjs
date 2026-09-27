@@ -152,7 +152,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(await readFile(file));
     }
     if (req.method === 'GET' && url.pathname === '/credits') {
-      const md = await readFile(path.join(DIR, 'samples', 'CREDITS.md'), 'utf8');
+      const md = await readFile(path.join(DIR, 'samples', 'CREDITS.zh-CN.md'), 'utf8');
       const esc = md.replace(/&/g, '&amp;').replace(/</g, '&lt;');
       return send(res, 200, '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>采样来源与授权</title><style>body{font:15px/1.7 system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;color:#18191b;background:#e4e5e0}pre{white-space:pre-wrap}</style></head><body><pre>' + esc + '</pre></body></html>', 'text/html; charset=utf-8');
     }

@@ -870,7 +870,8 @@ function chordInfo(a,i){
   }
   const rootPc=mod(a.root+semis[0],12);
   const sharp=!P.fl&&(a.mode==='major'?[0,7,2,9,4,11,6].includes(a.root):[9,4,11,6,1,8].includes(a.root));
-  return {sp:sharp?NOTE_SHARP:NOTE_FLAT,name:(sharp?NOTE_SHARP:NOTE_FLAT)[rootPc]+q,roman:rn,rootPc,bassPc:P.bassRel==null?null:mod(a.root+P.bassRel,12),pcs:semis.map(s=>mod(a.root+s,12)),degTones,chr:!!P.chr};
+  const sp=sharp?NOTE_SHARP:NOTE_FLAT, bassPc=P.bassRel==null?null:mod(a.root+P.bassRel,12);
+  return {sp,name:sp[rootPc]+q+(bassPc!=null&&bassPc!==rootPc?'/'+sp[bassPc]:''),roman:rn,rootPc,bassPc,pcs:semis.map(s=>mod(a.root+s,12)),degTones,chr:!!P.chr};
 }
 
 // Phrase breathing: gaps every two bars, with pickups or delayed entries into the next phrase.
@@ -1372,7 +1373,7 @@ function derive(a){
   // At high richness, omit roots from extended chord voicings and leave them to the bass, as in jazz/neo-soul voicings.
   const voic=voiceAll(rich?infos.map(c=>c.pcs.length>=4?{...c,pcs:c.pcs.slice(1)}:c):infos);
   const bpc=bassLine(a,infos);
-  infos=infos.map((c,b)=>bpc[b]===c.rootPc?c:{...c,name:c.name+'/'+c.sp[bpc[b]],slash:bpc[b]});
+  infos=infos.map((c,b)=>bpc[b]===c.rootPc?c:{...c,name:c.bassPc==null?c.name+'/'+c.sp[bpc[b]]:c.name,slash:bpc[b]});
   const ev={}, roll={};
   for(const L of LAYERS){ev[L]=[];roll[L]=[];for(let i=0;i<64;i++) ev[L][i]=[];}
   const vel=c=>c==='x'?1:c==='o'?.45:0;
@@ -1774,7 +1775,7 @@ function transposeD(D,tr,a){
   for(const L of ['chords','pad']) D.ev[L].forEach(list=>list.forEach(e=>{e[0]=e[0].map(up);}));
   for(const L of ['bass','melody','arp','chords','pad']) D.roll[L].forEach(n=>{n.midi=up(n.midi);});
   const b={...a,root:mod(a.root+tr,12),prog:colorize(a.prog,a)};
-  D.infos=D.infos.map((o,i)=>{const c=chordInfo(b,i);return o.slash!=null?{...c,name:c.name+'/'+c.sp[mod(o.slash+tr,12)],slash:mod(o.slash+tr,12)}:c;});
+  D.infos=D.infos.map((o,i)=>{const c=chordInfo(b,i);return o.slash!=null?{...c,name:c.bassPc==null?c.name+'/'+c.sp[mod(o.slash+tr,12)]:c.name,slash:mod(o.slash+tr,12)}:c;});
   return D;
 }
 const lastChorus=sections=>{for(let i=sections.length-1;i>=0;i--)if(sections[i].type==='chorus')return i;return -1;};

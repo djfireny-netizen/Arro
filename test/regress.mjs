@@ -22,6 +22,8 @@ try {
   const top = await page.textContent('.brand');
   ok('Header shows version 1.0 and AI generation label', top.includes('1.0') && top.includes('AI 生成') && !top.includes('原型'), top.trim());
   ok('Footer discloses AI-generated content', (await page.textContent('body')).includes('编曲内容由人工智能生成'));
+  const credits = await page.evaluate(() => fetch('/credits').then(r => r.text()));
+  ok('The Chinese interface serves Chinese sample credits', credits.includes('采样本身的出处') && credits.includes('CC BY 3.0'));
   // Generate a mock full-song plan.
   await page.getByRole('textbox', { name: '描述一个画面或心情' }).fill('深夜一个人开车穿过城市');
   await page.getByRole('button', { name: '生成', exact: true }).click();
@@ -81,9 +83,9 @@ try {
     let found=false;
     for(let i=0;i<midi.length-2;i++) if(midi[i]===0x90&&midi[i+1]===35&&midi[i+2]>0) found=true;
     const minor=api.parseChordTok('1m7/b3','minor');
-    return {bass:d.roll.bass.filter(n=>n.step%16===0).map(n=>n.midi%12),name:d.infos[0].name,found,minorBass:minor.bassRel};
+    return {bass:d.roll.bass.filter(n=>n.step%16===0).map(n=>n.midi%12),name:d.infos[0].name,displayName:api.chordInfo(a,0).name,found,minorBass:minor.bassRel};
   });
-  ok('Slash chords preserve specified bass pitches and chord names', JSON.stringify(inversion.bass)==='[11,4,6,0]' && inversion.name==='G/B' && inversion.minorBass===3, JSON.stringify(inversion));
+  ok('Slash chords preserve specified bass pitches and chord names', JSON.stringify(inversion.bass)==='[11,4,6,0]' && inversion.name==='G/B' && inversion.displayName==='G/B' && inversion.minorBass===3, JSON.stringify(inversion));
   ok('MIDI export preserves the explicit B bass for G/B', inversion.found);
   const shortPlan = await page.evaluate(() => {
     const api=__shiyin;
