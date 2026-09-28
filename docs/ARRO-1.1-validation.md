@@ -24,3 +24,11 @@ Reported usage: 317,718 input tokens and 21,628 output tokens. Token-based cost 
 | 44 | octave | Pass | 17.6 | 0.1828 |
 
 Raw project fixtures, responses, and per-call usage are retained privately under ignored eval/runs/revision-1.1/. Existing archived plans were replayed separately for compiler fidelity; the generation model and default sound engine were unchanged.
+
+## Release environment checks
+
+The local browser suite passed 94 checks; the same application commit passed 93 checks on the production server in an isolated authenticated mock preview (the additional local check records a candidate screenshot). Project, autosave, song-contract, durable-job, and HTTP restart suites passed. Six original/revised audio pairs and one approximately 200-second complete song were rendered through the application engine: finite, non-silent audio, AIGC export markers, and unchanged source projects were verified. These are technical audio checks, not subjective listening scores.
+
+Nginx generation routes have shared rate limiting and route-specific body limits: 8 KiB for arrangement, 128 KiB for refinement, and 12 MiB for scoped project revision.
+
+An additional real-model smoke test on the production host passed the octave and untouched-scope checks in 14.4 seconds, using 23,110 input and 1,383 output tokens (estimated $0.1201). Combined model-check estimate: $1.8235. This additional request is separate from the twelve-case study above.

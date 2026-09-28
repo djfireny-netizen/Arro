@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 — 2026-09-28
+## 1.1.0 — 2026-09-29
 
 ARRO now supports editing and revising the current arrangement without replacing the parts the listener wants to keep.
 

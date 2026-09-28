@@ -1,7 +1,7 @@
 # ARRO 1.1 release progress
 
 Baseline: `bca6a32`. Implementation branch: `feat/arro-1.1`.
-Status: release candidate; production deployment remains pending.
+Release: 1.1.0, 2026-09-29. Local and server release validation is complete; deployment is recorded in GitHub release history.
 
 ## Implemented scope
 
@@ -27,6 +27,8 @@ The latest completed browser suite passed 94 checks, including 88 compiler/proje
 
 Unit suites cover project contracts, autosave ordering, model boundaries, journal deduplication/ownership/interruption, and real HTTP restart recovery. Desktop and mobile layouts are checked with screenshots. No sound-bank substitution is included.
 
-A separate release check uses six archived English Opus projects from three scenes, with two targeted revisions each. It measures instruction fulfillment, untouched-scope equality, contract validity, latency, and token-accounted cost. These tests are not new human preference ratings or proof of commercial music quality. The selected model/provider stays unchanged. Results remain in ignored `eval/runs/revision-1.1/`; a public summary will accompany release.
+A separate release check uses six archived English Opus projects from three scenes, with two targeted revisions each. It measures instruction fulfillment, untouched-scope equality, contract validity, latency, and token-accounted cost. These tests are not new human preference ratings or proof of commercial music quality. The selected model/provider stays unchanged. Results remain in ignored `eval/runs/revision-1.1/`; the public summary is in `ARRO-1.1-validation.md`.
 
 The 12 live targeted revisions all passed contract, exact untouched-scope, and direction predicates. Mean latency was 22.7 seconds and token-accounted cost was approximately $1.7034. See `ARRO-1.1-validation.md`; this is not a human preference study.
+
+The server preview passed all 93 applicable browser checks. A separate real-model request on the production host passed the octave and untouched-scope checks in 14.4 seconds, at an estimated $0.1201. Total model-check cost including that smoke test: $1.8235. Nginx configuration validation passed with scoped-revision body limits and shared generation rate limiting.
