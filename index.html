@@ -301,6 +301,8 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
   .side .seg button{flex:1}
 }
 @media (prefers-reduced-motion:reduce){.ch.flash .roll{animation:none}}
+.project-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+.project-actions{display:flex;gap:8px;flex-wrap:wrap}.project-bar [data-state="error"]{color:var(--ink);font-weight:600}
 </style>
 
 <div class="app">
@@ -331,6 +333,15 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
       </div>
     </div>
   </header>
+  <div class="project-bar">
+    <span id="projectSaveState" role="status" aria-live="polite">正在读取本机工程…</span>
+    <div class="project-actions">
+      <button class="btn" id="retrySave" type="button" hidden>重试保存</button>
+      <button class="btn" id="downloadProject" type="button">下载工程</button>
+      <button class="btn" id="openProject" type="button">打开工程</button>
+      <input id="projectFile" type="file" accept=".json,.arro.json,application/json" hidden>
+    </div>
+  </div>
 
   <section class="prompt" aria-label="描述画面">
     <label class="lbl" for="mood">描述一个画面或心情</label>
@@ -465,7 +476,10 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
 
 <script type="module">
 import {captureProject, projectPerformance} from "/core/project.mjs";
-(() => {
+import {applyCommand} from "/core/commands.mjs";
+import {parseDocument, validateDocument, MAX_DOCUMENT_BYTES} from "/core/document.mjs";
+import {createProjectStore, createAutosaver} from "/storage/projects.mjs";
+(async () => {
 'use strict';
 /* ============ Music theory primitives ============ */
 const NOTE_NAMES=['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
@@ -2414,6 +2428,7 @@ function setMode(m,from){
   $('modeSong').setAttribute('aria-pressed',String(m==='song'));
   showPos(-1);
   if(was||from!==undefined) start(from||0);
+  scheduleProjectSave();
 }
 
 /* ============ AI-generated content labels: Chinese labeling rules / GB 45438-2025 ============ */
@@ -2741,8 +2756,9 @@ function buildRack(){
       toast(`现在是${a.melody.src||'引擎'}写的「${a.melody.name}」${a.melody.score!=null?`（${a.melody.score} 分）`:''}，再点一次换回来。`);};
     if(!auto){$('dice-'+L).onclick=()=>reroll(L);
     $('lock-'+L).onclick=e=>{state.locked[L]=!state.locked[L];e.currentTarget.setAttribute('aria-pressed',String(!!state.locked[L]));};}
-    $('mute-'+L).onclick=e=>{state.muted[L]=!state.muted[L];e.currentTarget.setAttribute('aria-pressed',String(!!state.muted[L]));row.dataset.muted=String(!!state.muted[L]);applyMix();};
-    $('vol-'+L).oninput=e=>{state.vol[L]=Number(e.target.value);applyMix();};
+    $('mute-'+L).onclick=()=>runProjectCommand({type:'set-mixer',trackId:'track:'+L,mixer:{muted:!state.muted[L]}});
+    $('vol-'+L).oninput=e=>runProjectCommand({type:'set-mixer',trackId:'track:'+L,mixer:{volume:Number(e.target.value)}}, 'volume:'+L);
+    $('vol-'+L).onchange=()=>{commandGesture=null;};
   }
 }
 function tok(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
@@ -2821,7 +2837,7 @@ function updateRackCap(){
   const sp=document.createElement('span'); sp.textContent=`全曲第 ${bar+1}–${bar+4} 小节。播放时每 4 小节自动翻页；停下时点下面的段落可以查看那一段。`;
   c.append(b,sp);
 }
-function drawAll(){LAYERS.forEach(drawRoll);}
+function drawAll(){if(!state.D||!state.S)return;LAYERS.forEach(drawRoll);}
 
 function render(changed){
   const a=state.arr; state.D=derive(a);
@@ -3001,13 +3017,14 @@ function renderSong(){
   const a=state.arr, song=state.song;
   // The legacy editor remains an input adapter until command-based editing lands.
   // Selection-only redraws reuse materialized events instead of recompiling music.
-  const input=JSON.stringify({arr:a,song,extra:state.extra,keyUp:state.keyUp,ctl:state.ctl});
+  const input=projectSource();
   if(!state.project||input!==state.projectInput){
     const performance=deriveSong(a,song,state.extra);
     state.project=captureProject({arrangement:a,sections:song,performance,mixer:state,previous:state.project});
     state.projectInput=input;
   }
   state.S=projectPerformance(state.project);
+  scheduleProjectSave();
   renderHarmony(); renderConcept();
   if(state.sel>=song.length) state.sel=song.length-1;
   const barSec=240/a.bpm;
@@ -3058,17 +3075,103 @@ function renderSong(){
 }
 function editSong(fn){commit();fn(state.song);renderSong();if(!tp.playing)showPos(-1);}
 
+/* ============ Durable project documents and editor commands ============ */
+// Layout: save status on the left; retry / download / open on the right.
+// The row wraps on small screens and reuses the existing theme and buttons.
+let commandGesture=null, persistenceReady=false, saveTimer=null, lastQueuedDocument=null;
+const projectStore=createProjectStore();
+function saveStatus(status,error){
+  const label=$('projectSaveState'); label.dataset.state=status;
+  label.textContent=status==='saved'?'已保存到此浏览器':status==='saving'?'正在保存…':status==='dirty'?'有修改，等待保存…':'未保存：'+String(error?.message||'请下载工程保留当前作品');
+  $('retrySave').hidden=status!=='error';
+}
+const autosaver=createAutosaver(projectStore,saveStatus);
+function projectDocument(){
+  return validateDocument(structuredClone({format:'arro-project',version:1,disclosure:AIGC_TEXT,project:state.project,editor:editorSnapshot()}));
+}
+function scheduleProjectSave(){
+  if(!persistenceReady) return;
+  clearTimeout(saveTimer); saveTimer=setTimeout(flushProjectSave,250);
+}
+function flushProjectSave(){
+  clearTimeout(saveTimer);
+  if(!persistenceReady) return Promise.resolve();
+  try {
+    const document=projectDocument(), text=JSON.stringify(document);
+    if(text!==lastQueuedDocument){lastQueuedDocument=text;return autosaver.enqueue(document);}
+    return autosaver.flush();
+  } catch(error){saveStatus('error',error);return Promise.resolve();}
+}
+function syncProjectControls(){
+  for(const L of LAYERS){
+    $('vol-'+L).value=state.vol[L];$('mute-'+L).setAttribute('aria-pressed',String(!!state.muted[L]));
+    rack.querySelector(`[data-layer="${L}"]`).dataset.muted=String(!!state.muted[L]);
+  }
+  $('feel').value=state.feel;$('feelV').textContent=Math.round(state.feel*100);
+}
+function runProjectCommand(command,gesture=null){
+  const next=applyCommand(state.project,{...command,baseRevision:state.project.revision});
+  if(next===state.project) return;
+  if(!gesture||commandGesture!==gesture){commit();commandGesture=gesture;}
+  state.project=next;state.arr.bpm=next.tempo;
+  for(const t of next.tracks){state.vol[t.layer]=t.mixer.volume;state.muted[t.layer]=t.mixer.muted;}
+  state.projectInput=projectSource();
+  syncProjectControls();render();
+}
+async function importProjectText(text){
+  if(state.busy) throw new Error('请等待当前生成任务结束后再打开工程');
+  const document=parseDocument(text), before=snap();
+  if(tp.playing) stop();
+  try {
+    restore(JSON.stringify({...document.editor,project:document.project}));
+  } catch(error) {
+    restore(before);
+    throw new Error('工程内容无法恢复，当前作品已保留');
+  }
+  HIST.undo.push(before);if(HIST.undo.length>60)HIST.undo.shift();HIST.redo=[];updUndo();
+  scheduleProjectSave();toast('工程已打开，可以撤销返回刚才的作品。');
+}
+$('downloadProject').onclick=async()=>{
+  try{await saveFile('ARRO-'+state.project.projectId+'.arro.json',JSON.stringify(projectDocument()),'application/json','工程已下载，可在 ARRO 中继续编辑。');}
+  catch(error){toast('工程下载失败：'+error.message);}
+};
+$('openProject').onclick=()=>{if(state.busy){toast('请等待当前生成任务结束后再打开工程');return;}$('projectFile').click();};
+$('projectFile').onchange=async e=>{
+  const file=e.target.files[0];e.target.value='';if(!file)return;
+  try{if(file.size>MAX_DOCUMENT_BYTES)throw new Error('工程文件超过 12 MB');await importProjectText(await file.text());}
+  catch(error){toast('打开失败：'+error.message);}
+};
+$('retrySave').onclick=async()=>{
+  if(!persistenceReady){
+    try{
+      const saved=await projectStore.load();
+      if(saved)throw new Error('浏览器中有未读取的工程，请先下载当前工程，再刷新重试');
+      autosaver.initialize(null);persistenceReady=true;lastQueuedDocument=null;await flushProjectSave();
+    }catch(error){saveStatus('error',error);}
+  }else await autosaver.retry();
+};
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushProjectSave();});
+window.addEventListener('beforeunload',e=>{
+  if(!persistenceReady||autosaver.unsettled||JSON.stringify(projectDocument())!==lastQueuedDocument){e.preventDefault();e.returnValue='';}
+});
+
 /* ============ Undo, redo, and version history ============ */
 const HIST={undo:[],redo:[]};
-const snap=()=>JSON.stringify({arr:state.arr,song:state.song,extra:state.extra,keyUp:state.keyUp,ctl:state.ctl});
-function commit(){HIST.undo.push(snap());if(HIST.undo.length>60)HIST.undo.shift();HIST.redo=[];updUndo();}
+const projectSource=()=>JSON.stringify({arr:state.arr,song:state.song,extra:state.extra,keyUp:state.keyUp,ctl:state.ctl});
+const editorSnapshot=()=>({arr:state.arr,song:state.song,extra:state.extra,keyUp:state.keyUp,ctl:state.ctl,vol:state.vol,muted:state.muted,feel:state.feel,mode:state.mode,sel:state.sel});
+const snap=()=>JSON.stringify({...editorSnapshot(),project:state.project});
+function commit(){commandGesture=null;HIST.undo.push(snap());if(HIST.undo.length>60)HIST.undo.shift();HIST.redo=[];updUndo();}
 function restore(str){
   const o=JSON.parse(str);
   state.arr=o.arr; state.song=o.song; state.extra=o.extra; state.keyUp=o.keyUp!==false; if(o.ctl) state.ctl={...state.ctl,...o.ctl};
+  if(o.vol) state.vol={...o.vol}; if(o.muted) state.muted={...o.muted}; if(o.feel!=null) state.feel=o.feel;
+  if(o.mode) state.mode=o.mode; if(Number.isInteger(o.sel)) state.sel=o.sel;
+  state.project=o.project||null; state.projectInput=o.project?projectSource():null;
   $('keyUp').checked=state.keyUp; $('mood').value=o.arr.mood||$('mood').value;
+  syncProjectControls();
   secId=Math.max(secId,...state.song.map(x=>x.id||0));
   state.sel=Math.min(state.sel,state.song.length-1);
-  render(); updUndo(); renderVersions();
+  render(); setMode(state.mode); updUndo(); renderVersions();
 }
 function undo(){if(!HIST.undo.length)return;HIST.redo.push(snap());restore(HIST.undo.pop());toast('已撤销');}
 function redo(){if(!HIST.redo.length)return;HIST.undo.push(snap());restore(HIST.redo.pop());toast('已重做');}
@@ -3076,7 +3179,7 @@ function updUndo(){$('undoBtn').disabled=!HIST.undo.length;$('redoBtn').disabled
 // Save a local version after generation or layer replacement; starred versions are retained.
 const VKEY='shiyin.versions.v1';
 let versions=[]; try{versions=JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){versions=[];}
-function saveVersions(){try{localStorage.setItem(VKEY,JSON.stringify(versions));}catch(e){}}
+function saveVersions(){try{localStorage.setItem(VKEY,JSON.stringify(versions));}catch(e){toast('版本历史保存失败；请下载工程保留当前作品。');}}
 function record(what,by){
   const a=state.arr, now=new Date();
   const v={id:now.getTime()+'-'+Math.random().toString(36).slice(2,6),time:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
@@ -3303,8 +3406,8 @@ $('genBtn').onclick=generate;
 $('mood').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing)generate();});
 $('playBtn').onclick=()=>tp.playing?stop():start();
 $('rollAll').onclick=rollAll;
-$('bpmUp').onclick=()=>{commit();state.arr.bpm=Math.min(170,state.arr.bpm+2);render();};
-$('bpmDown').onclick=()=>{commit();state.arr.bpm=Math.max(60,state.arr.bpm-2);render();};
+$('bpmUp').onclick=()=>runProjectCommand({type:'set-tempo',tempo:Math.min(180,state.arr.bpm+2)});
+$('bpmDown').onclick=()=>runProjectCommand({type:'set-tempo',tempo:Math.max(60,state.arr.bpm-2)});
 $('exportBtn').onclick=exportMidi;
 $('undoBtn').onclick=undo; $('redoBtn').onclick=redo;
 $('verAll').onclick=()=>{state.verStarOnly=false;$('verAll').setAttribute('aria-pressed','true');$('verStar').setAttribute('aria-pressed','false');renderVersions();};
@@ -3356,7 +3459,8 @@ function syncCtl(){
     state.feel=.7; $('feel').value=.7; $('feelV').textContent='70'; render(['chords']); toast('已恢复默认：跟随风格。');};
 }
 $('dirBtn').onclick=directions;
-$('feel').oninput=e=>{state.feel=Number(e.target.value);$('feelV').textContent=Math.round(state.feel*100);renderBreath();};
+$('feel').oninput=e=>{if(commandGesture!=='feel'){commit();commandGesture='feel';}state.feel=Number(e.target.value);$('feelV').textContent=Math.round(state.feel*100);renderBreath();scheduleProjectSave();};
+$('feel').onchange=()=>{commandGesture=null;};
 $('keyUp').onchange=e=>{commit();state.keyUp=e.target.checked;renderSong();if(!tp.playing)showPos(-1);toast(state.keyUp?'最后一遍副歌会升一个全音。':'已关闭升调。');};
 $('modeLoop').onclick=()=>state.mode!=='loop'&&setMode('loop');
 $('modeSong').onclick=()=>state.mode!=='song'&&setMode('song');
@@ -3382,7 +3486,15 @@ buildRack(); setPlayIcon();
 state.mood=$('mood').value;
 state.arr=compose(state.mood,scoreStyle(state.mood),null,{});
 state.verStarOnly=false;
+const startupSnapshot=snap();
+document.querySelector('.app').inert=true;
+try {
+  const saved=await projectStore.load();
+  if(saved){const doc=parseDocument(JSON.stringify(saved.document));restore(JSON.stringify({...doc.editor,project:doc.project}));lastQueuedDocument=JSON.stringify(projectDocument());}
+  autosaver.initialize(saved?.token??null); persistenceReady=true;if(saved)saveStatus('saved');
+} catch(error) { restore(startupSnapshot);saveStatus('error',new Error('本机工程读取失败：'+error.message)); }
 render(); setStatus(); detectBackend(); updUndo(); renderVersions();
-window.__shiyin={captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
+document.querySelector('.app').inert=false;
+window.__shiyin={projectDocument,importProjectText,runProjectCommand,flushProjectSave,projectStore,captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
 })();
 </script>

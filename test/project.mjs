@@ -49,3 +49,20 @@ const invalid = [
 ];
 for (const corrupt of invalid) { const p=structuredClone(project); corrupt(p); assert.throws(()=>validateProject(p), /Invalid ARRO project/); }
 console.log('Project serialization, identity, edit isolation, renderer round-trip, and 8 invalid-input checks passed');
+
+const { applyCommand } = await import('../core/commands.mjs');
+const tempo = applyCommand(project,{type:'set-tempo',tempo:126,baseRevision:0});
+assert.equal(tempo.tempo,126);
+assert.equal(tempo.revision,1);
+assert.equal(project.tempo,120);
+assert.deepEqual(tempo.tracks,project.tracks,'Tempo command preserves every event and identity');
+assert.throws(()=>applyCommand(tempo,{type:'set-tempo',tempo:128,baseRevision:0}),/conflict/);
+assert.throws(()=>applyCommand(project,{type:'set-tempo',tempo:999,baseRevision:0}),/Invalid/);
+const mixed=applyCommand(tempo,{type:'set-mixer',trackId:'track:melody',mixer:{volume:.37,muted:true},baseRevision:1});
+assert.equal(mixed.tracks[3].mixer.volume,.37);
+assert.equal(mixed.tracks[3].mixer.muted,true);
+assert.deepEqual(mixed.tracks[3].clips,tempo.tracks[3].clips);
+for(const i of [0,1,2,4,5,6,7]) assert.deepEqual(mixed.tracks[i],tempo.tracks[i]);
+assert.equal(applyCommand(mixed,{type:'set-tempo',tempo:126,baseRevision:2}),mixed,'No-op commands do not create revisions');
+assert.throws(()=>applyCommand(mixed,{type:'set-mixer',trackId:'track:melody',mixer:{volume:-1},baseRevision:2}),/Invalid/);
+console.log('Tempo/mixer commands preserve events, isolate edits, and reject invalid or stale commands');

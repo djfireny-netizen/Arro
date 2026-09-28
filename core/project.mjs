@@ -68,39 +68,48 @@ export function validateProject(project) {
   const fail = message => { throw new Error(`Invalid ARRO project: ${message}`); };
   if (project?.schemaVersion !== 2 || project.ticksPerQuarter !== PPQ) fail('unsupported schema');
   if (typeof project.projectId !== 'string' || !project.projectId || !Number.isInteger(project.revision) || project.revision < 0) fail('identity');
-  if (!Number.isFinite(project.tempo) || project.tempo <= 0) fail('tempo');
+  if (!Number.isFinite(project.tempo) || project.tempo < 60 || project.tempo > 180) fail('tempo');
   if (JSON.stringify(project.timeSignature) !== '[4,4]') fail('time signature');
+  if (!Array.isArray(project.sections) || !project.sections.length || project.sections.length > 24 || !Array.isArray(project.tracks)) fail('structure');
+  if (project.render?.version !== 'legacy-audio-v1' || ![1,2].includes(project.render.executionVersion)) fail('renderer');
   const ids = new Set();
   const unique = id => { if (typeof id !== 'string' || !id || ids.has(id)) fail('duplicate or missing ID'); ids.add(id); };
   const tick = n => Number.isInteger(n) && n >= 0 && n % STEP === 0;
   let end = 0;
   for (const s of project.sections) {
     unique(s.id);
-    if (s.startTick !== end || !tick(s.durationTicks) || s.durationTicks <= 0) fail('section range');
+    if (s.startTick !== end || !tick(s.durationTicks) || s.durationTicks <= 0 || s.durationTicks > 8 * 16 * STEP) fail('section range');
     end += s.durationTicks;
   }
   if (!end) fail('empty form');
+  const meta = project.render.metadata;
+  if (!meta || meta.bars !== end / (16 * STEP) || !Array.isArray(meta.starts) || meta.starts.length !== project.sections.length || meta.starts.some((bar,i)=>bar !== project.sections[i].startTick/(16*STEP)) || !Array.isArray(meta.map) || !Array.isArray(meta.markers) || !Array.isArray(meta.gaps)) fail('render metadata');
+  if (meta.markers.some(m=>!Number.isInteger(m.step)||m.step<0||m.step>=end/STEP||typeof m.name!=='string')) fail('markers');
   if (project.tracks.length !== LAYERS.length) fail('track count');
   const layers = new Set();
   for (const track of project.tracks) {
     unique(track.id);
     if (!LAYERS.includes(track.layer) || layers.has(track.layer)) fail('track layer');
     layers.add(track.layer);
-    if (track.clips.length !== project.sections.length) fail('clip count');
+    if (!track.mixer || !Number.isFinite(track.mixer.volume) || track.mixer.volume < 0 || track.mixer.volume > 1 || typeof track.mixer.muted !== 'boolean') fail('mixer');
+    if (!Array.isArray(track.clips) || track.clips.length !== project.sections.length) fail('clip count');
     const seenSections = new Set();
     for (const clip of track.clips) {
       unique(clip.id);
       const section = project.sections.find(s => s.id === clip.sectionId);
       if (!section || seenSections.has(section.id) || clip.startTick !== section.startTick || clip.durationTicks !== section.durationTicks) fail('clip range');
       seenSections.add(section.id);
+      if (!Array.isArray(clip.events) || clip.events.length > 16000) fail('events');
       for (const event of clip.events) {
         unique(event.id);
-        if (!tick(event.startTick) || event.startTick >= clip.durationTicks || !tick(event.durationTicks) || event.durationTicks <= 0) fail('event range');
+        if (!tick(event.startTick) || event.startTick >= clip.durationTicks || !tick(event.durationTicks) || event.durationTicks <= 0 || event.durationTicks > 128 * STEP) fail('event range');
         // Sustained notes/effect tails may cross a section boundary, as in the legacy renderer.
         if (pitched(track.layer)) {
           if (event.type !== 'note' || !Number.isInteger(event.pitch) || event.pitch < 0 || event.pitch > 127) fail('note');
-          if (!Number.isFinite(event.velocity) || event.velocity < 0) fail('velocity');
+          if (!Number.isFinite(event.velocity) || event.velocity < 0 || event.velocity > 4) fail('velocity');
           if (!event.render || typeof event.render.groupId !== 'string' || !Number.isInteger(event.render.voice) || event.render.voice < 0) fail('render group');
+          if (![2,3,4].includes(event.render.rowLength)) fail('render row');
+          if (event.render.articulation != null && !(track.layer === 'chords' ? ['D','U'].includes(event.render.articulation) : Number.isFinite(event.render.articulation) && event.render.articulation >= 0 && event.render.articulation <= 4)) fail('articulation');
         } else if (track.layer === 'fx') {
           if (event.type !== 'effect' || !['crash', 'riser', 'down', 'sweep'].includes(event.effect)) fail('effect');
         } else if (event.type !== 'drum' || !(track.layer === 'drums' ? DRUMS : PERC).includes(event.lane) || !Number.isFinite(event.velocity) || event.velocity < 0) fail('drum');

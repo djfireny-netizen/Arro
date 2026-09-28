@@ -161,8 +161,8 @@ const server = http.createServer(async (req, res) => {
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + page + '</body></html>',
         'text/html; charset=utf-8');
     }
-    if (req.method === 'GET' && url.pathname === '/core/project.mjs') {
-      return send(res, 200, await readFile(path.join(DIR, 'core', 'project.mjs'), 'utf8'), 'text/javascript; charset=utf-8');
+    if (req.method === 'GET' && ['/core/project.mjs', '/core/commands.mjs', '/core/document.mjs', '/storage/projects.mjs'].includes(url.pathname)) {
+      return send(res, 200, await readFile(path.join(DIR, url.pathname.slice(1)), 'utf8'), 'text/javascript; charset=utf-8');
     }
     if (req.method === 'GET' && url.pathname.startsWith('/samples/')) {
       const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');

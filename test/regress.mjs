@@ -11,7 +11,8 @@ let log = ''; srv.stdout.on('data', d => log += d); srv.stderr.on('data', d => l
 await new Promise(r => setTimeout(r, 1200));
 const results = []; const ok = (name, cond, info = '') => { results.push([cond ? '✓' : '✗', name, info]); };
 const browser = await chromium.launch({ executablePath: undefined }).catch(() => chromium.launch());
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const page = await context.newPage();
 const errs = []; page.on('pageerror', e => errs.push(e.message));
 const B = `http://127.0.0.1:${PORT}`;
 try {
@@ -197,6 +198,68 @@ try {
     },plans);
     ok('Archived plans survive both execution versions and project round-trip', plans.length>0&&replay.passed===plans.length*2&&!replay.failures.length, JSON.stringify(replay));
   }
+  // Durable project commands, import/export, refresh, and failed-save recovery.
+  const beforeCommand=await page.evaluate(()=>JSON.stringify(__shiyin.state.project));
+  await page.click('#bpmUp');
+  const afterCommand=await page.evaluate(()=>JSON.stringify(__shiyin.state.project));
+  ok('Tempo commands preserve events and increment the project revision', JSON.parse(afterCommand).tempo===JSON.parse(beforeCommand).tempo+2&&JSON.parse(afterCommand).revision===JSON.parse(beforeCommand).revision+1&&JSON.stringify(JSON.parse(afterCommand).tracks)===JSON.stringify(JSON.parse(beforeCommand).tracks));
+  await page.click('#undoBtn');
+  ok('Undo restores the exact materialized project', beforeCommand===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  await page.click('#redoBtn');
+  ok('Redo restores the exact command result', afterCommand===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  const beforeMix=await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument()));
+  await page.click('#mute-bass');
+  await page.evaluate(()=>{const el=document.querySelector('#vol-melody');for(const value of [.41,.37]){el.value=value;el.dispatchEvent(new Event('input'));}el.dispatchEvent(new Event('change'));});
+  ok('Mixer commands update the project and controls', await page.evaluate(()=>__shiyin.state.project.tracks.find(t=>t.layer==='bass').mixer.muted&&__shiyin.state.project.tracks.find(t=>t.layer==='melody').mixer.volume===.37));
+  await page.click('#undoBtn');await page.click('#undoBtn');
+  ok('A slider gesture is one undo step and mute is independently undoable', beforeMix===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  await page.click('#redoBtn');await page.click('#redoBtn');
+  await page.evaluate(()=>__shiyin.flushProjectSave());
+  await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
+  const savedDocument=await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument()));
+  await page.reload();await page.waitForFunction(()=>window.__shiyin?.state.project);
+  ok('Refresh restores project IDs, events, mixer, and editor settings', savedDocument===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  const fileDownload=page.waitForEvent('download');await page.click('#downloadProject');
+  const file=await fileDownload;
+  const downloaded=await readFile(await file.path(),'utf8');
+  ok('Download creates a complete .arro.json document', file.suggestedFilename().endsWith('.arro.json')&&JSON.stringify(JSON.parse(downloaded))===savedDocument);
+  await page.click('#bpmUp');
+  await page.setInputFiles('#projectFile',{name:'saved.arro.json',mimeType:'application/json',buffer:Buffer.from(downloaded)});
+  await page.waitForFunction(tempo=>__shiyin.state.arr.bpm===tempo,JSON.parse(downloaded).project.tempo);
+  ok('Opening an exported project restores its current performance', savedDocument===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  await page.click('#undoBtn');
+  ok('Opening a project is undoable', await page.evaluate(tempo=>__shiyin.state.arr.bpm===tempo+2,JSON.parse(downloaded).project.tempo));
+  await page.click('#redoBtn');
+  const malformed=await page.evaluate(async()=>{
+    const before=JSON.stringify(__shiyin.projectDocument());let rejected=0;
+    const bad=__shiyin.projectDocument();bad.project.sections[0].durationTicks=999999999;
+    for(const text of ['{broken',JSON.stringify({...bad,version:99}),JSON.stringify(bad)]){
+      try{await __shiyin.importProjectText(text);}catch{rejected++;}
+    }
+    return rejected===3&&before===JSON.stringify(__shiyin.projectDocument());
+  });
+  ok('Malformed and unsupported files preserve the open project', malformed);
+  await page.evaluate(()=>__shiyin.flushProjectSave());
+  await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
+  // A second tab reads the saved token; it does not save merely by opening.
+  const other=await page.context().newPage();await other.goto(B);await other.waitForFunction(()=>window.__shiyin?.state.project);
+  await page.click('#bpmUp');await page.evaluate(()=>__shiyin.flushProjectSave());
+  await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
+  const durableTempo=await page.evaluate(()=>__shiyin.state.project.tempo);
+  await other.click('#bpmDown');await other.evaluate(()=>__shiyin.flushProjectSave());
+  await other.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='error');
+  ok('A stale tab cannot overwrite the newer saved project', (await other.textContent('#projectSaveState')).includes('另一个标签页')&&await page.evaluate(async tempo=>(await __shiyin.projectStore.load()).document.project.tempo===tempo,durableTempo));
+  await other.close({runBeforeUnload:false});
+  await page.evaluate(()=>{window.originalProjectSave=__shiyin.projectStore.save;__shiyin.projectStore.save=async()=>{throw new Error('Test quota failure');};});
+  await page.click('#bpmUp');await page.evaluate(()=>__shiyin.flushProjectSave());
+  await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='error');
+  ok('Save failures remain visible and preserve in-memory edits', await page.isVisible('#retrySave')&&await page.evaluate(tempo=>__shiyin.state.project.tempo===tempo+2,durableTempo));
+  await page.evaluate(()=>{__shiyin.projectStore.save=window.originalProjectSave;});
+  await page.click('#retrySave');await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
+  ok('Retry commits the latest unsaved edit', await page.evaluate(async()=>(await __shiyin.projectStore.load()).document.project.tempo===__shiyin.state.project.tempo));
+  await page.setViewportSize({width:390,height:844});
+  ok('Project controls fit a narrow screen', await page.evaluate(()=>{const el=document.querySelector('.project-bar');return el.getBoundingClientRect().right<=innerWidth&&el.scrollWidth<=el.clientWidth;}));
+  if(process.env.ARRO_SCREENSHOT_PATH) await page.screenshot({path:process.env.ARRO_SCREENSHOT_PATH,fullPage:false});
   ok('No browser errors', errs.length === 0, errs.join(' | ').slice(0, 300));
 } catch (e) { ok('Test execution error', false, String(e.message).slice(0, 300)); }
 await browser.close(); srv.kill();

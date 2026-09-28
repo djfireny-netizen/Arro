@@ -12,14 +12,24 @@ The version-two event path skips automatic clash correction, brightness reharmon
 
 The full-song view now reads its performance back from ProjectV2. Selection-only redraws reuse the materialized events. Audio and full-song MIDI export consume this reconstructed performance through the existing renderer. The server serves the project module using an explicit authenticated path.
 
+## Stage A, persistence and command increment
+
+The studio now autosaves its current project to IndexedDB and restores it after reload. An explicit save state distinguishes pending, saving, saved, and failed writes. Failed writes retain current in-memory edits and can be retried or recovered by downloading an `.arro.json` document. Files contain both materialized project events and the compatibility editor snapshot, including mixer levels, mute state, feel, mode, and section selection. AI disclosure is retained. Imports validate format, identity, dimensions, playback metadata, and editor/project consistency before application; unsuccessful restoration rolls back to the open work. Opening a file is undoable.
+
+`core/commands.mjs` implements copy-on-write tempo and mixer commands with revision checks. These commands preserve note events and identities. Undo/redo snapshots include the materialized project, and a continuous volume drag is one undo step. Legacy history snapshots without a project still pass through the existing renderer to materialize ProjectV2 when restored.
+
+`storage/projects.mjs` serializes and coalesces writes. Each IndexedDB transaction atomically checks a concurrency token and commits the document with its next token. A stale tab reports a conflict instead of overwriting another tab's save. Opening a second tab does not itself write a new revision. Initial recovery blocks editing until the stored document has been read; read failures preserve the stored record and offer file-based recovery.
+
+The new project toolbar wraps at narrow widths, using the existing theme and Chinese labels. Storage is local to the browser and origin, not cloud sync. The document is a portable ARRO compatibility format, not a general-purpose DAW session.
+
 ## Current boundaries
 
 This increment is a compatibility bridge, not a finished project editor or a 1.1 release:
 
-- Legacy editor state remains the input adapter; changing it recompiles the project. A command layer and explicit migration/import boundary are still required before event editing becomes the only authority.
+- Tempo and mixer edits use project commands. Other legacy editing operations still recompile the project; note/clip commands and complete event-first editing remain pending.
 - The four-bar loop continues to use its existing derivation path. Full-song event capture does not yet make the loop editor a clip editor.
-- Durable storage, `.arro.json` import/export UI, undoable event commands, and scoped AI revision are not implemented here. Existing localStorage history still stores legacy snapshots.
-- Mixer controls, audio humanization, swing, envelopes, and sound assets remain owned by the existing audio engine. Event round-trip equality does not imply bit-identical rendered audio or complete standalone project playback.
+- Autosave keeps the current project, not a cloud library. Undo/redo is session-local. Named version history still uses localStorage; write failures now surface a recovery message. Note-event editing and scoped AI revision remain pending.
+- Mixer settings are persisted and synchronized with the existing audio engine. Audio humanization, swing, envelopes, and sound assets still use the existing renderer. Event round-trip equality does not imply bit-identical rendered audio or complete standalone project playback.
 - Event editing currently uses the existing sixteenth-note grid. Arbitrary section lengths and sub-step editing remain later work.
 - Version-two energy/brightness/richness controls no longer silently rewrite explicit model events. Their product interaction must be redesigned around explicit edits before rollout.
 - Historical plans remain available for version-one replay. New execution semantics must not be applied to existing listening-study clips or interpreted as new listening scores.
@@ -30,10 +40,14 @@ The production branch and provider configuration have not been changed. This inc
 
 Run `test/regress.mjs` before and after changes, with Playwright configured through `PLAYWRIGHT_MJS` if necessary. It covers the existing generation/refinement/export workflow and new execution/project invariants. Set `ARRO_REPLAY_PLANS` to an archived `results.json` to exercise every stored plan through both execution versions and a ProjectV2 serialization round-trip. This is an offline compiler test, not regeneration.
 
-`node test/song-contract.mjs` checks model-boundary scenarios. `node test/project.mjs` checks serialization, identity, edit isolation, section-crossing tails, renderer round-trip, and malformed project data.
+The latest browser run passed 51 checks, including 88 offline replay cases from 44 archived plans, full document refresh/import/export, exact undo/redo, actual two-tab conflicts, failed-save retry, and narrow-screen toolbar layout.
+
+`node test/autosave.mjs` checks write ordering, coalescing, stale saved labels, error retention, and retrying the latest edit. `node test/song-contract.mjs` checks model-boundary scenarios. `node test/project.mjs` checks serialization, identity, edit isolation, section-crossing tails, renderer round-trip, and malformed project data.
 
 A private frozen baseline with hashes is stored under ignored `eval/runs/arro-1.1-baseline/`.
 
 ## Next increment
 
-Finish command-based current-project editing and legacy snapshot migration; then implement transactional IndexedDB saving, visible save failures, and project-file recovery. Scoped AI revision and candidate comparison follow the durable project boundary.
+Finish event/clip commands and remove remaining implicit recompilation paths; then implement scoped AI revision and candidate comparison against the persisted current project.
+
+ACE Studio is a separate integration candidate. Its installed official CLI responded to a read-only project-info check. No ACE project was changed, imported, or rendered. Prefer the official CLI and skills for any future local handoff; a local desktop connection is not a hosted browser API.
