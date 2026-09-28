@@ -66,3 +66,28 @@ for(const i of [0,1,2,4,5,6,7]) assert.deepEqual(mixed.tracks[i],tempo.tracks[i]
 assert.equal(applyCommand(mixed,{type:'set-tempo',tempo:126,baseRevision:2}),mixed,'No-op commands do not create revisions');
 assert.throws(()=>applyCommand(mixed,{type:'set-mixer',trackId:'track:melody',mixer:{volume:-1},baseRevision:2}),/Invalid/);
 console.log('Tempo/mixer commands preserve events, isolate edits, and reject invalid or stale commands');
+
+const clip=project.tracks[3].clips[0], event=clip.events[0];
+const noteCommand={type:'update-note',trackId:'track:melody',clipId:clip.id,eventId:event.id,baseRevision:0,patch:{pitch:67,startTick:58*STEP,durationTicks:4*STEP,velocity:.51}};
+const noteEdit=applyCommand(project,noteCommand);
+assert.deepEqual(noteEdit.tracks.filter(t=>t.layer!=='melody'),project.tracks.filter(t=>t.layer!=='melody'));
+assert.deepEqual(noteEdit.tracks[3].clips[1],project.tracks[3].clips[1]);
+assert.equal(noteEdit.tracks[3].clips[0].events[0].id,event.id);
+assert.equal(noteEdit.tracks[3].clips[0].edited,true);
+assert.equal(projectPerformance(noteEdit).ev.melody[58][0][0],67);
+assert.equal(projectPerformance(noteEdit).roll.melody[0].velocity,51);
+assert.equal(projectPerformance(noteEdit).roll.melody[0].exactTiming,true);
+for(const patch of [{pitch:128},{pitch:60.5},{startTick:-120},{startTick:63*STEP,durationTicks:8*STEP},{velocity:2},{durationTicks:0}]) assert.throws(()=>applyCommand(project,{...noteCommand,patch}));
+assert.throws(()=>applyCommand(noteEdit,noteCommand),/conflict/);
+const deleted=applyCommand(noteEdit,{type:'delete-note',trackId:'track:melody',clipId:clip.id,eventId:event.id,baseRevision:1});
+assert.equal(deleted.tracks[3].clips[0].events.length,clip.events.length-1);
+assert.equal(project.tracks[3].clips[0].events.length,2,'Commands never mutate the original');
+const preserved=captureProject({...args,previous:noteEdit,preserveEdited:true});
+assert.deepEqual(preserved.tracks[3].clips[0].events,noteEdit.tracks[3].clips[0].events,'Legacy recompilation retains hand-edited clips');
+assert.deepEqual(captureProject({...args,previous:deleted,preserveEdited:true}).tracks[3].clips[0].events,deleted.tracks[3].clips[0].events,'Deleted notes stay deleted on recompilation');
+assert.doesNotThrow(()=>applyCommand(project,{...noteCommand,patch:{pitch:68}}),'Existing cross-section tails survive pitch-only editing');
+console.log('Scoped note movement, pitch, duration, velocity, deletion, bounds, conflicts, and recompilation preservation passed');
+
+const empty=applyCommand(deleted,{type:'delete-note',trackId:'track:melody',clipId:clip.id,eventId:deleted.tracks[3].clips[0].events[0].id,baseRevision:2});
+assert.equal(captureProject({...args,previous:empty,preserveEdited:true}).tracks[3].clips[0].events.length,0,'A manually emptied clip stays silent');
+assert.deepEqual(projectPerformance(captureProject({...args,performance:projectPerformance(noteEdit)})).ev,projectPerformance(noteEdit).ev,'Explicit timing and velocity survive rematerialization');

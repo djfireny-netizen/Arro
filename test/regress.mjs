@@ -257,8 +257,61 @@ try {
   await page.evaluate(()=>{__shiyin.projectStore.save=window.originalProjectSave;});
   await page.click('#retrySave');await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
   ok('Retry commits the latest unsaved edit', await page.evaluate(async()=>(await __shiyin.projectStore.load()).document.project.tempo===__shiyin.state.project.tempo));
+  // Edit a real materialized melody through the public controls.
+  const noteTarget=await page.evaluate(()=>{
+    const t=__shiyin.state.project.tracks.find(t=>t.layer==='melody'),c=t.clips.find(c=>c.events.length);
+    return {section:__shiyin.state.project.sections.findIndex(s=>s.id===c.sectionId),clipId:c.id,eventId:c.events[0].id};
+  });
+  await page.selectOption('#noteSection',String(noteTarget.section));await page.selectOption('#noteTrack','melody');
+  const beforeNote=await page.evaluate(()=>({project:structuredClone(__shiyin.state.project),extra:JSON.stringify(__shiyin.state.extra)}));
+  await page.selectOption('#notePitch','126');await page.fill('#noteStart','3');await page.fill('#noteLength','4');await page.fill('#noteVelocity','51');await page.click('#noteApply');
+  const noteResult=await page.evaluate(({clipId,eventId,before})=>{
+    const api=__shiyin,p=api.state.project,c=p.tracks.find(t=>t.layer==='melody').clips.find(c=>c.id===clipId),e=c.events.find(e=>e.id===eventId);
+    const untouched=p.tracks.every(t=>t.clips.every(c=>c.id===clipId||JSON.stringify(c)===JSON.stringify(before.project.tracks.find(x=>x.id===t.id).clips.find(x=>x.id===c.id))));
+    const midi=api.midiFile(api.state.arr,['melody'],api.state.S,'NOTE-EDIT');
+    const view=new DataView(midi.buffer,midi.byteOffset,midi.byteLength);let off=14,found=false,timing=false;
+    while(off<midi.length){const end=off+8+view.getUint32(off+4);let i=off+8,tick=0,on=null;
+      const vlq=()=>{let n=0,b;do{b=midi[i++];n=(n<<7)|(b&127);}while(b&128);return n;};
+      while(i<end){tick+=vlq();const status=midi[i++];if(status===255){i++;const n=vlq();i+=n;continue;}
+        const kind=status>>4,note=midi[i++];if(kind===12||kind===13)continue;const vel=midi[i++];
+        if(kind===9&&note===126&&vel===51){found=true;on=tick;}
+        if(kind===8&&note===126&&on!==null){timing=tick-on===480;}
+      }off=end;
+    }
+    return {event:e,untouched,source:before.extra===JSON.stringify(api.state.extra),live:api.state.S.ev.melody[(c.startTick+e.startTick)/120].some(row=>row[0]===126&&row[2]===.51),found,timing,mode:api.state.mode};
+  },{...noteTarget,before:beforeNote});
+  ok('Note fields change pitch, position, duration, and velocity only in the selected clip',noteResult.event.pitch===126&&noteResult.event.startTick===240&&noteResult.event.durationTicks===480&&noteResult.event.velocity===.51&&noteResult.untouched&&noteResult.source);
+  ok('Edited notes reach song playback and MIDI with exact user duration and velocity',noteResult.live&&noteResult.found&&noteResult.timing&&noteResult.mode==='song',JSON.stringify(noteResult));
+  ok('Legacy AI refinement is gated while it cannot read manual note edits',await page.isDisabled('#refineBtn')&&(await page.textContent('#concept')).includes('手动音符修改'));
+  const editedNoteProject=await page.evaluate(()=>JSON.stringify(__shiyin.state.project));
+  await page.click('#undoBtn');ok('Note undo restores the original project exactly',JSON.stringify(beforeNote.project)===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  await page.click('#redoBtn');ok('Note redo restores edited events and identities',editedNoteProject===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  const noteLocator=page.locator('.note-cell').filter({hasText:'F#9'}).first();
+  await noteLocator.scrollIntoViewIfNeeded();let box=await noteLocator.boundingBox();
+  await page.mouse.move(box.x+5,box.y+7);await page.mouse.down();await page.mouse.move(box.x+29,box.y-11,{steps:4});await page.mouse.up();
+  ok('Dragging a note moves it on the timing and pitch grid',await page.evaluate(({clipId,eventId})=>{const e=__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events.find(e=>e.id===eventId);return e.startTick===480&&e.pitch===127;},noteTarget));
+  const resized=page.locator('.note-cell').filter({hasText:'G9'}).first();await resized.scrollIntoViewIfNeeded();box=await resized.boundingBox();
+  await page.mouse.move(box.x+box.width-3,box.y+7);await page.mouse.down();await page.mouse.move(box.x+box.width+21,box.y+7,{steps:4});await page.mouse.up();
+  ok('Dragging the note edge resizes its duration',await page.evaluate(({clipId,eventId})=>__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events.find(e=>e.id===eventId).durationTicks===720,noteTarget));
+  const editedEvents=await page.evaluate(clipId=>JSON.stringify(__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events),noteTarget.clipId);
+  await page.evaluate(()=>{__shiyin.state.arr.bright=.99;__shiyin.render();});
+  ok('Legacy recompilation preserves manually edited clips',editedEvents===await page.evaluate(clipId=>JSON.stringify(__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events),noteTarget.clipId));
+  await page.evaluate(()=>__shiyin.flushProjectSave());await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
+  await page.reload();await page.waitForFunction(()=>window.__shiyin?.state.project);
+  ok('Reload preserves manually edited note events',editedEvents===await page.evaluate(clipId=>JSON.stringify(__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events),noteTarget.clipId));
+  await page.selectOption('#noteSection',String(noteTarget.section));await page.selectOption('#noteTrack','melody');
+  await page.locator('.note-cell').filter({hasText:'G9'}).first().click();await page.click('#noteDelete');
+  ok('Deleting a note removes its playback event and remains undoable',await page.evaluate(({clipId,eventId})=>!__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events.some(e=>e.id===eventId),noteTarget));
+  await page.click('#undoBtn');ok('Undo brings the deleted note back unchanged',editedEvents===await page.evaluate(clipId=>JSON.stringify(__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events),noteTarget.clipId));
+  if(process.env.ARRO_NOTE_SCREENSHOT_PREFIX){
+    const clean=await page.evaluate(editedId=>__shiyin.state.project.tracks[3].clips.findIndex(c=>c.id!==editedId&&c.events.length),noteTarget.clipId);
+    await page.selectOption('#noteSection',String(clean));
+    await page.locator('.note-editor').screenshot({path:process.env.ARRO_NOTE_SCREENSHOT_PREFIX+'-desktop.png'});
+  }
   await page.setViewportSize({width:390,height:844});
   ok('Project controls fit a narrow screen', await page.evaluate(()=>{const el=document.querySelector('.project-bar');return el.getBoundingClientRect().right<=innerWidth&&el.scrollWidth<=el.clientWidth;}));
+  ok('Note editor fields stay inside a narrow viewport',await page.evaluate(()=>document.querySelector('.note-editor').getBoundingClientRect().right<=innerWidth&&document.querySelector('.note-fields').scrollWidth<=document.querySelector('.note-fields').clientWidth));
+  if(process.env.ARRO_NOTE_SCREENSHOT_PREFIX) await page.locator('.note-editor').screenshot({path:process.env.ARRO_NOTE_SCREENSHOT_PREFIX+'-mobile.png'});
   if(process.env.ARRO_SCREENSHOT_PATH) await page.screenshot({path:process.env.ARRO_SCREENSHOT_PATH,fullPage:false});
   ok('No browser errors', errs.length === 0, errs.join(' | ').slice(0, 300));
 } catch (e) { ok('Test execution error', false, String(e.message).slice(0, 300)); }

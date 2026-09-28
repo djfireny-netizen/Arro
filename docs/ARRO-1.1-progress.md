@@ -22,15 +22,25 @@ The studio now autosaves its current project to IndexedDB and restores it after 
 
 The new project toolbar wraps at narrow widths, using the existing theme and Chinese labels. Storage is local to the browser and origin, not cloud sync. The document is a portable ARRO compatibility format, not a general-purpose DAW session.
 
+## Section-scoped note editor
+
+A lightweight piano roll now targets one section and one pitched track: melody, bass, chords, arpeggio, or pad. Notes support pointer dragging for pitch/time movement, right-edge duration resizing, keyboard movement/deletion, and numeric/select controls for pitch, position, duration, and velocity. A drag commits one undoable command after release. Note editing switches listening to the full-song view; the four-bar seed remains separate source material.
+
+Commands validate target IDs, base revision, note pitch/grid/range, and user velocity before replacing the project. They preserve every event outside the target clip and do not mutate shared producer groups. Edited clips carry a persisted marker. Subsequent legacy compilation preserves those clips, including manually emptied clips; shortening a section rejects changes that would discard their notes. Section editing rolls back on such a failure.
+
+The renderer and full-song MIDI export read the current events. Explicit user velocity reaches all five pitched audio tracks and MIDI; explicitly edited duration bypasses the former MIDI end shortening. Timing/velocity flags survive project serialization and rematerialization. Audio humanization and envelopes still prevent a claim of waveform-identical rendering.
+
+The old whole-song AI refinement flow still reads the initial AI plan. It is therefore disabled after note edits, with an explanation, until current-project revision context is implemented. Pending refinement retains its existing changed-state protection. No new paid generation was used to test this editor.
+
 ## Current boundaries
 
 This increment is a compatibility bridge, not a finished project editor or a 1.1 release:
 
-- Tempo and mixer edits use project commands. Other legacy editing operations still recompile the project; note/clip commands and complete event-first editing remain pending.
+- Tempo, mixer, and single-note edits use project commands. Other legacy operations recompile unedited clips, while manually edited clips retain their realized notes. Arbitrary clip replacement and full event-first editing remain pending.
 - The four-bar loop continues to use its existing derivation path. Full-song event capture does not yet make the loop editor a clip editor.
-- Autosave keeps the current project, not a cloud library. Undo/redo is session-local. Named version history still uses localStorage; write failures now surface a recovery message. Note-event editing and scoped AI revision remain pending.
+- Autosave keeps the current project, not a cloud library. Undo/redo is session-local. Named version history still uses localStorage; write failures now surface a recovery message. Scoped AI revision remains pending.
 - Mixer settings are persisted and synchronized with the existing audio engine. Audio humanization, swing, envelopes, and sound assets still use the existing renderer. Event round-trip equality does not imply bit-identical rendered audio or complete standalone project playback.
-- Event editing currently uses the existing sixteenth-note grid. Arbitrary section lengths and sub-step editing remain later work.
+- Note editing uses the sixteenth-note grid and the existing four/eight-bar sections. Adding new notes, drum-grid editing, arbitrary section lengths, and sub-step editing remain later work. Chord labels and lead sheets remain references to declared harmony; direct pitch edits do not automatically rename chords.
 - Version-two energy/brightness/richness controls no longer silently rewrite explicit model events. Their product interaction must be redesigned around explicit edits before rollout.
 - Historical plans remain available for version-one replay. New execution semantics must not be applied to existing listening-study clips or interpreted as new listening scores.
 
@@ -40,7 +50,7 @@ The production branch and provider configuration have not been changed. This inc
 
 Run `test/regress.mjs` before and after changes, with Playwright configured through `PLAYWRIGHT_MJS` if necessary. It covers the existing generation/refinement/export workflow and new execution/project invariants. Set `ARRO_REPLAY_PLANS` to an archived `results.json` to exercise every stored plan through both execution versions and a ProjectV2 serialization round-trip. This is an offline compiler test, not regeneration.
 
-The latest browser run passed 51 checks, including 88 offline replay cases from 44 archived plans, full document refresh/import/export, exact undo/redo, actual two-tab conflicts, failed-save retry, and narrow-screen toolbar layout.
+The latest browser run passed 63 checks, including 88 offline replay cases from 44 archived plans, full document refresh/import/export, exact undo/redo, actual two-tab conflicts, failed-save retry, narrow-screen layouts, note pointer movement/resizing, deletion, exact note undo/redo, MIDI pitch/duration/velocity, and persistence through refresh and legacy compilation.
 
 `node test/autosave.mjs` checks write ordering, coalescing, stale saved labels, error retention, and retrying the latest edit. `node test/song-contract.mjs` checks model-boundary scenarios. `node test/project.mjs` checks serialization, identity, edit isolation, section-crossing tails, renderer round-trip, and malformed project data.
 
@@ -48,6 +58,6 @@ A private frozen baseline with hashes is stored under ignored `eval/runs/arro-1.
 
 ## Next increment
 
-Finish event/clip commands and remove remaining implicit recompilation paths; then implement scoped AI revision and candidate comparison against the persisted current project.
+Implement scoped AI revision from the current persisted event project, validate replacement clips against scope and base revision, and provide original/candidate comparison before acceptance. Then expand note creation and drum editing as needed.
 
 ACE Studio is a separate integration candidate. Its installed official CLI responded to a read-only project-info check. No ACE project was changed, imported, or rendered. Prefer the official CLI and skills for any future local handoff; a local desktop connection is not a hosted browser API.

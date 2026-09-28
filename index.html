@@ -303,6 +303,17 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
 @media (prefers-reduced-motion:reduce){.ch.flash .roll{animation:none}}
 .project-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)}
 .project-actions{display:flex;gap:8px;flex-wrap:wrap}.project-bar [data-state="error"]{color:var(--ink);font-weight:600}
+/* Editor layout: section/track toolbar, scrollable roll, numeric alternatives. */
+.note-editor{margin:24px 0;border:1px solid var(--line);border-radius:6px;padding:16px;background:var(--panel)}
+.note-tools,.note-fields{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0}
+.note-tools label,.note-fields label{display:grid;gap:5px;font-size:12px;color:var(--ink-2)}
+.note-tools select,.note-fields select,.note-fields input{height:34px;border:1px solid var(--line);background:var(--roll);color:var(--ink);border-radius:4px;padding:0 8px;max-width:180px}
+.note-fields input{width:110px}.note-scroll{overflow:auto;max-height:360px;border:1px solid var(--line);background:var(--roll)}
+.note-grid{position:relative;touch-action:pan-x pan-y;background-image:linear-gradient(to right,var(--grid-strong) 1px,transparent 1px),linear-gradient(to right,var(--grid) 1px,transparent 1px),linear-gradient(to bottom,var(--grid) 1px,transparent 1px);background-size:192px 100%,48px 100%,100% 18px}
+.note-cell{position:absolute;min-width:8px;height:16px;border:1px solid var(--ink-3);border-radius:3px;background:#31bdb0;color:#102622;font:10px system-ui;overflow:hidden;white-space:nowrap;text-align:left;padding:0 2px;cursor:grab;touch-action:none}
+.note-cell[aria-pressed="true"]{background:#5894f5;color:#fff;outline:2px solid var(--ink);outline-offset:1px;z-index:2}
+.note-resize{position:absolute;right:0;top:0;height:100%;width:8px;cursor:ew-resize;background:rgba(0,0,0,.13)}
+.note-grid-label{position:absolute;pointer-events:none;font:10px system-ui;color:var(--ink-3)}
 </style>
 
 <div class="app">
@@ -439,6 +450,27 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
         <button class="ib" type="button" id="songReset">换一种结构</button>
       </div>
     </div>
+  </section>
+
+  <section class="note-editor" aria-label="段落音符编辑">
+    <div class="song-h"><div><h2>修改这一段</h2><p class="sub">选中音符后拖动，或在下方填写数值。拖动右侧边缘调整时长。</p></div></div>
+    <div class="note-tools">
+      <label>段落 <select id="noteSection" aria-label="编辑段落"></select></label>
+      <label>轨道 <select id="noteTrack" aria-label="编辑轨道"></select></label>
+      <button class="btn" id="noteListen" type="button">从这段试听</button>
+      <span id="noteEditState" role="status"></span>
+    </div>
+    <div class="note-scroll"><div id="noteGrid" class="note-grid" role="group" aria-label="音符卷帘"></div></div>
+    <p id="noteSelection" class="sub">选择一个音符</p>
+    <form id="noteForm" class="note-fields">
+      <label>音高 <select id="notePitch" aria-label="音符音高"></select></label>
+      <label>位置（16 分步）<input id="noteStart" type="number" min="1" step="1" required></label>
+      <label>时长（16 分步）<input id="noteLength" type="number" min="1" step="1" required></label>
+      <label>力度（1–127）<input id="noteVelocity" type="number" min="1" max="127" step="1" required></label>
+      <button class="btn" id="noteApply" type="submit">应用修改</button>
+      <button class="btn" id="noteDelete" type="button">删除音符</button>
+    </form>
+    <p class="sub">修改作用于整首歌曲中选定的片段，可撤销。上方的 4 小节种子循环保留原来的编曲素材。</p>
   </section>
 
   <section class="vers" aria-label="版本记录">
@@ -2345,11 +2377,11 @@ function playStep(ev,step,t,sd,only){
     if(!on('drums')) continue;
     drum(L,t+J(L==='k'?2:7),v*V(L==='h'||L==='o'?acc:L==='k'?1:.95,.12),A.ch.drums.g,K.drums==='acoustic');
   }
-  if(on('bass')) for(const [m,l,k] of ev.bass[step]){const tt=t+J(5),dur=l*sd*.92,kk=V(k??1,.08);inst(K.bass,m,tt,dur,A.ch.bass.g,kk,()=>voice(BASS_P[s.bass],mtof(m),tt,dur,A.ch.bass.g,kk));}
-  if(on('chords')) for(const [ms,l,k,dir] of ev.chords[step]) ms.forEach((m,i)=>{const tt=t+i*(dir?.017:.013*F)+J(4),dur=l*sd*.95,kk=V(k??1,.06);inst(K.chords,m,tt,dur,A.ch.chords.g,kk*.7,()=>voice(PAD_P[s.pad],mtof(m),tt,dur,A.ch.chords.g,kk));});
-  if(on('melody')) for(const [m,l,k,gt] of ev.melody[step]){if(A.guide){if((k??1)<.5)continue;const dur=l*sd*Math.min(1,gt??.9);voice(VOX_P,mtof(m),t,dur,A.ch.melody.g,1);continue;}const tt=t+Math.abs(J(14)),dur=l*sd*(gt??.9),kk=V(k??1,.08);inst(K.lead,m,tt,dur,A.ch.melody.g,kk,()=>voice(LEAD_P[s.lead],mtof(m),tt,dur,A.ch.melody.g,kk));}
-  if(on('arp')) for(const [m,l] of ev.arp[step]){const tt=t+J(4),dur=l*sd*.85,kk=V(acc,.12);inst(K.arp,m,tt,dur,A.ch.arp.g,kk*.6,()=>voice(ARP_P[s.arp]||ARP_P.pluck,mtof(m),tt,dur,A.ch.arp.g,kk));}
-  if(on('pad')) for(const [ms,l] of ev.pad[step]) ms.forEach(m=>inst(K.pad,m,t,l*sd,A.ch.pad.g,.55,()=>voice(STR_P,mtof(m),t,l*sd,A.ch.pad.g)));
+  if(on('bass')) for(const [m,l,k,,edit] of ev.bass[step]){const tt=t+J(5),dur=l*sd*(edit?.userTiming?1:.92),kk=edit?.userVelocity?(k??1):V(k??1,.08);inst(K.bass,m,tt,dur,A.ch.bass.g,kk,()=>voice(BASS_P[s.bass],mtof(m),tt,dur,A.ch.bass.g,kk));}
+  if(on('chords')) for(const [ms,l,k,dir,edit] of ev.chords[step]) ms.forEach((m,i)=>{const tt=t+i*(dir?.017:.013*F)+J(4),dur=l*sd*(edit?.userTiming?1:.95),kk=edit?.userVelocity?(k??1):V(k??1,.06);inst(K.chords,m,tt,dur,A.ch.chords.g,kk*.7,()=>voice(PAD_P[s.pad],mtof(m),tt,dur,A.ch.chords.g,kk));});
+  if(on('melody')) for(const [m,l,k,gt,edit] of ev.melody[step]){if(A.guide){if((k??1)<.5)continue;const dur=l*sd*Math.min(1,gt??.9);voice(VOX_P,mtof(m),t,dur,A.ch.melody.g,1);continue;}const tt=t+Math.abs(J(14)),dur=l*sd*(edit?.userTiming?1:(gt??.9)),kk=edit?.userVelocity?(k??1):V(k??1,.08);inst(K.lead,m,tt,dur,A.ch.melody.g,kk,()=>voice(LEAD_P[s.lead],mtof(m),tt,dur,A.ch.melody.g,kk));}
+  if(on('arp')) for(const [m,l,k,,edit] of ev.arp[step]){const tt=t+J(4),dur=l*sd*(edit?.userTiming?1:.85),kk=edit?.userVelocity?(k??1):V(acc,.12);inst(K.arp,m,tt,dur,A.ch.arp.g,kk*.6,()=>voice(ARP_P[s.arp]||ARP_P.pluck,mtof(m),tt,dur,A.ch.arp.g,kk));}
+  if(on('pad')) for(const [ms,l,k,,edit] of ev.pad[step]) ms.forEach(m=>{const gain=edit?.userVelocity?(k??1):1;inst(K.pad,m,t,l*sd,A.ch.pad.g,.55*gain,()=>voice(STR_P,mtof(m),t,l*sd,A.ch.pad.g,gain));});
   if(on('perc')) for(const [L,v] of ev.perc[step]) perc(L,t+J(9),v*V(step%2===0?1:.7,.15),A.ch.perc.g);
   for(const [type,l] of ev.fx[step]){
     if(type==='sweep'){sweep(t,l*sd);continue;}
@@ -2481,11 +2513,11 @@ function midiFile(a,which,D,aid){
     D.roll.drums.forEach(n=>note(e,9,n.step*T,T-10,map[LANES[n.lane]],Math.round(40+n.v*80)));
     tracks.push(mtrk('鼓组 '+a.drums.name,e));
   }
-  if(which.includes('bass')){const e=[{t:0,o:0,d:[0xC0,progs.bass[a.sound.bass]]}];D.roll.bass.forEach(n=>note(e,0,n.step*T,n.len*T-10,n.midi,96));tracks.push(mtrk('贝斯 '+a.bass.name,e));}
-  if(which.includes('chords')){const e=[{t:0,o:0,d:[0xC1,progs.pad[a.sound.pad]]}];D.roll.chords.forEach(n=>note(e,1,n.step*T,n.len*T-10,n.midi,80));tracks.push(mtrk('和弦 '+a.chords.name,e));}
-  if(which.includes('melody')){const e=[{t:0,o:0,d:[0xC2,progs.lead[a.sound.lead]]}];D.roll.melody.forEach(n=>note(e,2,n.step*T,n.len*T-10,n.midi,Math.round(Math.min(127,(n.k??.9)*105))));tracks.push(mtrk('旋律 '+a.melody.name,e));}
-  if(which.includes('arp')&&D.roll.arp.length){const e=[{t:0,o:0,d:[0xC3,GM[K.arp]??({pluck:84,bell:11,soft:4,glass:98,chip:80}[a.sound.arp]||84)]}];D.roll.arp.forEach(n=>note(e,3,n.step*T,n.len*T-10,n.midi,78));tracks.push(mtrk('琶音 '+a.arp.name,e));}
-  if(which.includes('pad')&&D.roll.pad.length){const e=[{t:0,o:0,d:[0xC4,GM[K.pad]??89]}];D.roll.pad.forEach(n=>note(e,4,n.step*T,n.len*T-10,n.midi,64));tracks.push(mtrk('铺底 '+a.pad.name,e));}
+  if(which.includes('bass')){const e=[{t:0,o:0,d:[0xC0,progs.bass[a.sound.bass]]}];D.roll.bass.forEach(n=>note(e,0,n.step*T,n.len*T-(n.exactTiming?0:10),n.midi,n.velocity??96));tracks.push(mtrk('贝斯 '+a.bass.name,e));}
+  if(which.includes('chords')){const e=[{t:0,o:0,d:[0xC1,progs.pad[a.sound.pad]]}];D.roll.chords.forEach(n=>note(e,1,n.step*T,n.len*T-(n.exactTiming?0:10),n.midi,n.velocity??80));tracks.push(mtrk('和弦 '+a.chords.name,e));}
+  if(which.includes('melody')){const e=[{t:0,o:0,d:[0xC2,progs.lead[a.sound.lead]]}];D.roll.melody.forEach(n=>note(e,2,n.step*T,n.len*T-(n.exactTiming?0:10),n.midi,n.velocity??Math.round(Math.min(127,(n.k??.9)*105))));tracks.push(mtrk('旋律 '+a.melody.name,e));}
+  if(which.includes('arp')&&D.roll.arp.length){const e=[{t:0,o:0,d:[0xC3,GM[K.arp]??({pluck:84,bell:11,soft:4,glass:98,chip:80}[a.sound.arp]||84)]}];D.roll.arp.forEach(n=>note(e,3,n.step*T,n.len*T-(n.exactTiming?0:10),n.midi,n.velocity??78));tracks.push(mtrk('琶音 '+a.arp.name,e));}
+  if(which.includes('pad')&&D.roll.pad.length){const e=[{t:0,o:0,d:[0xC4,GM[K.pad]??89]}];D.roll.pad.forEach(n=>note(e,4,n.step*T,n.len*T-(n.exactTiming?0:10),n.midi,n.velocity??64));tracks.push(mtrk('铺底 '+a.pad.name,e));}
   if(which.includes('perc')&&D.roll.perc.length){
     const map={sh:70,tb:54,cg:63,cl:64,rm:37}, e=[];
     D.roll.perc.forEach(n=>note(e,9,n.step*T,T-10,map[PERC_LANES[n.lane]],Math.round(35+n.v*70)));
@@ -2906,6 +2938,7 @@ function renderPlanInsp(s,barSec){
   if(state.mode==='song'&&state.viewOff>(state.S.bars-4)*16) state.viewOff=Math.max(0,(state.S.bars-4)*16);
   updateRackCap();
 }
+const hasNoteEdits=()=>!!state.project?.tracks.some(t=>t.clips.some(c=>c.edited));
 function renderConcept(){
   const a=state.arr, box=$('concept'), planned=state.song.some(x=>x.plan);
   box.innerHTML=''; box.hidden=!(planned&&(a.concept||(a.review&&a.review.length)));
@@ -2922,8 +2955,9 @@ function renderConcept(){
     const form=document.createElement('div'); form.style.marginTop='16px';
     const label=document.createElement('label'); label.textContent='想怎么打磨（选填）'; label.htmlFor='refineDirection';
     const input=document.createElement('input'); input.id='refineDirection'; input.type='text'; input.maxLength=500; input.placeholder='例如：副歌更抓耳，保留中间的停顿'; input.style.cssText='display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:10px 12px;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px';
-    const button=document.createElement('button'); button.id='refineBtn'; button.type='button'; button.className='btn dark'; button.textContent=state.busy?'制作中…':'再打磨一次'; button.disabled=!!state.busy; button.onclick=()=>polish(input.value);
+    const button=document.createElement('button'); button.id='refineBtn'; button.type='button'; button.className='btn dark'; button.textContent=state.busy?'制作中…':'再打磨一次'; button.disabled=!!state.busy||hasNoteEdits(); button.onclick=()=>polish(input.value);
     const note=document.createElement('p'); note.className='sub'; note.textContent='可选，会额外调用模型。基于这份 AI 方案修改，手动调整请写进要求；当前版本会保留在历史中。';
+    if(hasNoteEdits())note.textContent='这版含手动音符修改，整曲打磨暂不可用。可以继续编辑、试听和导出。';
     form.append(label,input,button,note); box.appendChild(form);
   }
 }
@@ -3020,7 +3054,7 @@ function renderSong(){
   const input=projectSource();
   if(!state.project||input!==state.projectInput){
     const performance=deriveSong(a,song,state.extra);
-    state.project=captureProject({arrangement:a,sections:song,performance,mixer:state,previous:state.project});
+    state.project=captureProject({arrangement:a,sections:song,performance,mixer:state,previous:state.project,preserveEdited:true});
     state.projectInput=input;
   }
   state.S=projectPerformance(state.project);
@@ -3046,6 +3080,7 @@ function renderSong(){
   });
   const s=song[state.sel], S=SECTIONS[s.type];
   $('inspName').textContent=S.name;
+  renderNoteEditor();
   if(s.plan){renderPlanInsp(s,barSec);return;}
   $('inspMeta').textContent=`第 ${state.sel+1} 段 · ${s.bars} 小节 · 约 ${Math.round(s.bars*barSec)} 秒`;
   $('inspDesc').textContent=S.desc+(state.sel===state.S.keyUpAt?' 这是最后一遍副歌，整体升了一个全音（两个半音），听起来一下子被"抬"起来，这是流行歌推高潮最经典的手法。':'');
@@ -3073,7 +3108,86 @@ function renderSong(){
   if(state.mode==='song'&&state.viewOff>(state.S.bars-4)*16) state.viewOff=Math.max(0,(state.S.bars-4)*16);
   updateRackCap();
 }
-function editSong(fn){commit();fn(state.song);renderSong();if(!tp.playing)showPos(-1);}
+function editSong(fn){const before=snap();commit();try{fn(state.song);renderSong();if(!tp.playing)showPos(-1);}catch(error){HIST.undo.pop();restore(before);toast(error.message);}}
+
+/* ============ Section-scoped note editing ============ */
+const noteEditor={track:'melody',eventId:null,drag:null,high:84};
+const noteLabel=p=>NOTE_NAMES[p%12]+(Math.floor(p/12)-1);
+const selectedClip=()=>state.project?.tracks.find(t=>t.layer===noteEditor.track)?.clips.find(c=>c.sectionId===state.project.sections[state.sel]?.id);
+for(const layer of ['melody','bass','chords','arp','pad']){const option=document.createElement('option');option.value=layer;option.textContent=META[layer].name;$('noteTrack').appendChild(option);}
+for(let pitch=0;pitch<128;pitch++){const option=document.createElement('option');option.value=pitch;option.textContent=noteLabel(pitch);$('notePitch').appendChild(option);}
+function selectNote(id){
+  noteEditor.eventId=id;
+  const clip=selectedClip(), event=clip?.events.find(e=>e.id===id);
+  $('noteGrid').querySelectorAll('.note-cell').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.eventId===id)));
+  for(const field of ['notePitch','noteStart','noteLength','noteVelocity','noteApply','noteDelete'])$(field).disabled=!event;
+  $('noteSelection').textContent=event?`${noteLabel(event.pitch)} · 第 ${Math.floor(event.startTick/1920)+1} 小节 · 可用方向键移动，Delete 删除`:'这条轨道在本段没有音符，或尚未选中音符。';
+  if(!event)return;
+  $('notePitch').value=event.pitch;$('noteStart').value=event.startTick/120+1;
+  $('noteLength').value=event.durationTicks/120;$('noteVelocity').value=Math.max(1,Math.min(127,Math.round(event.velocity*100)));
+  $('noteStart').max=clip.durationTicks/120;$('noteLength').max=clip.durationTicks/120;
+}
+function renderNoteEditor(){
+  if(!state.project)return;
+  const menu=$('noteSection');menu.replaceChildren();
+  state.song.forEach((section,i)=>{const option=document.createElement('option');option.value=i;option.textContent=`${i+1}. ${secName(section)}`;menu.appendChild(option);});
+  menu.value=state.sel;$('noteTrack').value=noteEditor.track;
+  const clip=selectedClip(),grid=$('noteGrid');grid.replaceChildren();
+  if(!clip)return;
+  const notes=clip.events.filter(e=>e.type==='note'), pitches=notes.map(e=>e.pitch);
+  let low=Math.max(0,(pitches.length?Math.min(...pitches):60)-2),high=Math.min(127,(pitches.length?Math.max(...pitches):72)+2);
+  while(high-low<17){if(low>0)low--;if(high<127)high++;}
+  noteEditor.high=high;
+  grid.style.width=clip.durationTicks/120*12+'px';grid.style.height=(high-low+1)*18+'px';
+  for(let pitch=high;pitch>=low;pitch--)if(pitch%12===0){const label=document.createElement('span');label.className='note-grid-label';label.style.top=(high-pitch)*18+'px';label.textContent=noteLabel(pitch);grid.appendChild(label);}
+  for(const event of notes){
+    const button=document.createElement('button');button.type='button';button.className='note-cell';button.dataset.eventId=event.id;
+    button.style.left=event.startTick/120*12+'px';button.style.top=(high-event.pitch)*18+'px';button.style.width=event.durationTicks/120*12+'px';
+    button.textContent=noteLabel(event.pitch);button.setAttribute('aria-label',`${noteLabel(event.pitch)}，第 ${event.startTick/120+1} 步，长度 ${event.durationTicks/120} 步`);
+    const handle=document.createElement('span');handle.className='note-resize';button.appendChild(handle);
+    button.onclick=()=>selectNote(event.id);
+    button.onkeydown=e=>{
+      if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Delete','Backspace'].includes(e.key))return;
+      e.preventDefault();selectNote(event.id);
+      if(['Delete','Backspace'].includes(e.key)){submitNote(null);return;}
+      const patch=e.key==='ArrowUp'?{pitch:event.pitch+1}:e.key==='ArrowDown'?{pitch:event.pitch-1}:{startTick:event.startTick+(e.key==='ArrowRight'?120:-120)};
+      submitNote(patch);$('noteGrid').querySelector(`[data-event-id="${CSS.escape(event.id)}"]`)?.focus();
+    };
+    grid.appendChild(button);
+  }
+  $('noteEditState').textContent=clip.edited?(noteEditor.track==='chords'?'已编辑音符 · 和弦名称仍为编曲参考':'已手动编辑 · 再编曲时保留本片段'):`${notes.length} 个音符`;
+  selectNote(notes.some(e=>e.id===noteEditor.eventId)?noteEditor.eventId:notes[0]?.id??null);
+  const selected=notes.find(e=>e.id===noteEditor.eventId),scroller=grid.parentElement;
+  if(selected){const top=(high-selected.pitch)*18;if(top<scroller.scrollTop||top+18>scroller.scrollTop+scroller.clientHeight)scroller.scrollTop=Math.max(0,top-60);}
+}
+function submitNote(patch,revision=state.project.revision){
+  const clip=selectedClip();if(!clip||!noteEditor.eventId)return;
+  try{runProjectCommand({type:patch?'update-note':'delete-note',trackId:'track:'+noteEditor.track,clipId:clip.id,eventId:noteEditor.eventId,patch,baseRevision:revision});}
+  catch(error){toast('修改未应用：请检查音高、时长和位置是否在本段范围内；工程变化后请重新选择音符。');renderNoteEditor();}
+}
+$('noteSection').onchange=e=>{state.sel=Number(e.target.value);noteEditor.eventId=null;renderSong();};
+$('noteTrack').onchange=e=>{noteEditor.track=e.target.value;noteEditor.eventId=null;renderNoteEditor();};
+$('noteListen').onclick=()=>setMode('song',state.S.starts[state.sel]*16);
+$('noteForm').onsubmit=e=>{e.preventDefault();submitNote({pitch:Number($('notePitch').value),startTick:(Number($('noteStart').value)-1)*120,durationTicks:Number($('noteLength').value)*120,velocity:Number($('noteVelocity').value)/100});};
+$('noteDelete').onclick=()=>submitNote(null);
+$('noteGrid').onpointerdown=e=>{
+  const button=e.target.closest('.note-cell');if(!button||e.button!==0)return;
+  selectNote(button.dataset.eventId);
+  const clip=selectedClip(),event=clip.events.find(n=>n.id===noteEditor.eventId);
+  noteEditor.drag={id:e.pointerId,button,event:structuredClone(event),x:e.clientX,y:e.clientY,resize:e.target.classList.contains('note-resize'),revision:state.project.revision,patch:null};
+  $('noteGrid').setPointerCapture(e.pointerId);e.preventDefault();
+};
+$('noteGrid').onpointermove=e=>{
+  const d=noteEditor.drag;if(!d||e.pointerId!==d.id)return;
+  const dx=Math.round((e.clientX-d.x)/12),dy=Math.round((e.clientY-d.y)/18),clip=selectedClip();
+  if(d.resize){const durationTicks=Math.max(120,Math.min(clip.durationTicks-d.event.startTick,d.event.durationTicks+dx*120));d.patch={durationTicks};d.button.style.width=durationTicks/120*12+'px';}
+  else{const startTick=Math.max(0,Math.min(clip.durationTicks-d.event.durationTicks,d.event.startTick+dx*120)),pitch=Math.max(0,Math.min(127,d.event.pitch-dy));d.patch={startTick,pitch};d.button.style.left=startTick/120*12+'px';d.button.style.top=(noteEditor.high-pitch)*18+'px';}
+};
+$('noteGrid').onpointerup=e=>{
+  const d=noteEditor.drag;if(!d||e.pointerId!==d.id)return;noteEditor.drag=null;
+  if(d.patch&&Object.entries(d.patch).some(([key,value])=>d.event[key]!==value))submitNote(d.patch,d.revision);else renderNoteEditor();
+};
+$('noteGrid').onpointercancel=()=>{noteEditor.drag=null;renderNoteEditor();};
 
 /* ============ Durable project documents and editor commands ============ */
 // Layout: save status on the left; retry / download / open on the right.
@@ -3110,13 +3224,16 @@ function syncProjectControls(){
   $('feel').value=state.feel;$('feelV').textContent=Math.round(state.feel*100);
 }
 function runProjectCommand(command,gesture=null){
-  const next=applyCommand(state.project,{...command,baseRevision:state.project.revision});
+  const next=applyCommand(state.project,{baseRevision:state.project.revision,...command});
   if(next===state.project) return;
   if(!gesture||commandGesture!==gesture){commit();commandGesture=gesture;}
   state.project=next;state.arr.bpm=next.tempo;
   for(const t of next.tracks){state.vol[t.layer]=t.mixer.volume;state.muted[t.layer]=t.mixer.muted;}
   state.projectInput=projectSource();
-  syncProjectControls();render();
+  const noteCommand=['update-note','delete-note'].includes(command.type);
+  const switchToSong=noteCommand&&state.mode!=='song';
+  if(switchToSong){if(tp.playing)stop();state.mode='song';}
+  syncProjectControls();render();if(switchToSong)setMode('song');
 }
 async function importProjectText(text){
   if(state.busy) throw new Error('请等待当前生成任务结束后再打开工程');
@@ -3333,6 +3450,7 @@ async function generate(){
   state.arr=compose(mood,pickStyle(),prev,locked); newForm(); render(LAYERS); record(mood);
 }
 async function polish(direction){
+  if(hasNoteEdits()){toast('这版含手动音符修改，请继续使用音符编辑。');return;}
   if(state.busy || !state.arr.aiPlan || !state.backend?.ok) return;
   const source=JSON.parse(JSON.stringify(state.arr.aiPlan)), mood=state.arr.mood||state.mood||'继续打磨这首歌';
   commit(); record(mood,'打磨前保留');
