@@ -8,7 +8,7 @@ import { completionFetch } from './model-transport.mjs';
 
 // Switchable model providers using OpenAI-compatible APIs.
 const PROVIDERS = {
-  aihubmix: { label: 'Claude', baseURL: 'https://aihubmix.com/v1', keyEnv: 'AIHUBMIX_API_KEY', model: process.env.AIHUBMIX_MODEL || 'claude-opus-5-5', json: false },
+  aihubmix: { label: 'Claude', baseURL: (process.env.AIHUBMIX_BASE_URL || 'https://aihubmix.com/v1').replace(/\/$/, ''), keyEnv: 'AIHUBMIX_API_KEY', model: process.env.AIHUBMIX_MODEL || 'claude-opus-5-5', json: false },
   qwen:     { label: '千问',     baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1', keyEnv: 'DASHSCOPE_API_KEY', model: process.env.QWEN_MODEL || 'qwen-plus', json: true },
   deepseek: { label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1',                       keyEnv: 'DEEPSEEK_API_KEY',  model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', json: true },
   doubao:   { label: '豆包',     baseURL: 'https://ark.cn-beijing.volces.com/api/v3',          keyEnv: 'ARK_API_KEY',       model: process.env.DOUBAO_MODEL || '', json: false },
