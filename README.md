@@ -4,7 +4,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-**Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the song's form, harmony, grooves, melodies, and production moves, then reviews and revises its draft. Shape the result with the arrangement controls and export MIDI or audio to continue working in your DAW.
+**Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the song's form, harmony, grooves, melodies, and production moves, with an optional user-requested revision after listening. Shape the result with the arrangement controls and export MIDI or audio to continue working in your DAW.
 
 The application currently has a Chinese interface and runs on Node.js 18 or later. The [hosted version](https://music.aitown.me) requires an invitation code.
 
@@ -32,12 +32,14 @@ The sound engine combines 30 sampled instruments with Web Audio synthesis. Sampl
 ## How generation works
 
 1. **Draft:** the model writes a complete JSON arrangement: sections, harmony, grooves, melodies, instrumentation, and production decisions.
-2. **Review:** a second model call reviews and revises that arrangement. Program measurements provide facts such as duration, bar counts, and unsupported notation.
+2. **Technical validation:** the program checks the returned plan and allows at most one targeted repair. Musical revision is optional: use “再打磨一次” after listening, with an optional direction. The current version is preserved in history.
 3. **Playback and export:** the browser interprets the plan, applies its playback constraints and fallbacks, and renders the arrangement.
 
 Musical structure and creative decisions belong to the model. Measurements supplied to the reviewer describe technical facts. The requested duration is 2:40–3:30; actual adherence is measured by the evaluation suite. The browser preserves the model's section order and reports duration mismatches. Each model pass has at most one targeted technical repair, within a shared 450-second generation deadline. A revision counts as complete only when its full schema, 3–5 change notes, and 160–210-second duration pass validation; otherwise the validated draft is returned with an explicit fallback status. Slash chords such as `5/7` retain their specified bass pitches in playback and MIDI.
 
-The interface shows the producer's concept and revision notes. Two-pass generation typically takes one or two minutes, depending on the model and service. Set `ARRANGE_PASSES=1` for a single draft, or `ARRANGE_MODE=loop` for the older four-bar workflow. Local controls and alternative arrangements respond without an API call.
+The default is one musical pass (`ARRANGE_PASSES=1`). Set `ARRANGE_PASSES=2` only for legacy automatic review. Optional revision uses the saved AI plan; include manual edits in the direction if you want them reflected. A failed revision preserves the current arrangement, and edits made while waiting are retained. The revision is available separately in history. `ARRANGE_MODE=loop` retains the older four-bar workflow. Local controls respond without an API call.
+
+The selected provider is Claude Opus 5.5 through AIHubMix: set `PROVIDER=aihubmix`, `AIHUBMIX_MODEL=claude-opus-5-5`, and `PROMPT_LANGUAGE=en`. Enter the model API key as `AIHUBMIX_API_KEY` in the ignored local `.env`. The account-management Access Key is a different credential. Producer/reviewer system prompts use English while listener-facing output stays Chinese. Calls use medium reasoning and streamed transport; there is no automatic model substitution.
 
 ## Run locally
 

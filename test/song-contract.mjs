@@ -2,14 +2,15 @@
 import assert from 'node:assert/strict';
 import { planIssues, chordSymbol } from '../song-contract.mjs';
 process.env.PROVIDER = 'mock';
+process.env.ARRANGE_PASSES = '2';
 const demo = await import('../ai.mjs?demo-contract');
 const base = await demo.arrange('格式测试');
 assert.deepEqual(planIssues(base, { review: true, duration: true }), []);
 process.env.PROVIDER = 'qwen';
 process.env.DASHSCOPE_API_KEY = 'offline-test-key';
 process.env.QWEN_MODEL = 'offline-test-model';
-delete process.env.ARRANGE_PASSES;
-const { arrange } = await import('../ai.mjs?model-contract');
+process.env.ARRANGE_PASSES = '2';
+const { arrange, refine } = await import('../ai.mjs?model-contract');
 const originalFetch = globalThis.fetch;
 const copy = () => structuredClone(base);
 let calls;
@@ -70,5 +71,45 @@ try {
   assert.deepEqual(planIssues(inverted), []);
   const wrongReview = copy(); wrongReview.review = { changed: true };
   assert.ok(planIssues(wrongReview).some(x => x.includes('review'))); count++;
+  delete process.env.ARRANGE_PASSES;
+  await run([copy()], async () => {
+    const plan = await arrange('单次生成');
+    assert.equal(calls.length, 1);
+    assert.equal(plan.passes, 1);
+    assert.equal(plan.validation.review, 'skipped'); count++;
+  });
+  await run([missing, copy()], async () => {
+    const plan = await arrange('单次生成也修复格式');
+    assert.equal(calls.length, 2);
+    assert.equal(plan.generation.reviewAttempts, 0); count++;
+  });
+  await run([copy()], async () => {
+    const original = copy(), before = JSON.stringify(original);
+    const plan = await refine(original, '可选打磨', '保留停顿');
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].messages[1].content, /保留停顿/);
+    assert.equal(plan.validation.review, 'complete');
+    assert.equal(JSON.stringify(original), before); count++;
+  });
+  await run([noReview, noReview], async () => {
+    const plan = await refine(copy(), '修改失败');
+    assert.equal(plan.validation.review, 'failed');
+    assert.deepEqual(plan.sections, base.sections); count++;
+  });
+  process.env.PROVIDER = 'aihubmix';
+  process.env.AIHUBMIX_API_KEY = 'offline-aihubmix-key';
+  process.env.AIHUBMIX_MODEL = 'claude-opus-5-5';
+  process.env.PROMPT_LANGUAGE = 'en';
+  const claude = await import('../ai.mjs?claude-contract');
+  await run([copy()], async () => {
+    const plan = await claude.arrange('英文制作人');
+    assert.equal(plan.passes, 1);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].messages[0].content, /^You are a world-class/);
+    assert.equal(calls[0].model, 'claude-opus-5-5');
+    assert.equal(calls[0].stream, true);
+    assert.equal(calls[0].temperature, undefined);
+    assert.equal(calls[0].reasoning_effort, 'medium'); count++;
+  });
   console.log(`All ${count} model-boundary scenarios passed`);
 } finally { globalThis.fetch = originalFetch; }

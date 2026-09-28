@@ -5,7 +5,7 @@ const { chromium } = await import('playwright').catch(() => import(process.env.P
 import { spawn } from 'node:child_process';
 const REPO = process.argv[2] || new URL('..', import.meta.url).pathname;
 const PORT = 5199;
-const srv = spawn('node', ['server.mjs'], { cwd: REPO, env: { ...process.env, PROVIDER: 'mock', PORT: String(PORT), INVITE_CODES: 'TEST-CODE-1', HOST: '127.0.0.1' } });
+const srv = spawn('node', ['server.mjs'], { cwd: REPO, env: { ...process.env, PROVIDER: 'mock', ARRANGE_PASSES: '1', PORT: String(PORT), INVITE_CODES: 'TEST-CODE-1', HOST: '127.0.0.1' } });
 let log = ''; srv.stdout.on('data', d => log += d); srv.stderr.on('data', d => log += d);
 await new Promise(r => setTimeout(r, 1200));
 const results = []; const ok = (name, cond, info = '') => { results.push([cond ? '✓' : '✗', name, info]); };
@@ -42,9 +42,18 @@ try {
   // Generate a mock full-song plan.
   await page.getByRole('textbox', { name: '描述一个画面或心情' }).fill('深夜一个人开车穿过城市');
   await page.getByRole('button', { name: '生成', exact: true }).click();
-  await page.waitForFunction(() => document.body.innerText.includes('第二轮改了什么'), null, { timeout: 30000 });
-  const body = await page.textContent('body');
-  ok('Draft and self-revision status is shown', body.includes('初稿 + 自我修改'));
+  await page.waitForFunction(() => window.__shiyin?.state.arr?.aiPlan && !window.__shiyin.state.busy, null, { timeout: 30000 });
+  ok('Generation defaults to one musical pass', await page.evaluate(() => __shiyin.state.arr.passes === 1 && __shiyin.state.arr.aiPlan.validation.review === 'skipped'));
+  await page.fill('#refineDirection', '保留中间的停顿');
+  await page.click('#refineBtn');
+  await page.waitForFunction(() => window.__shiyin.state.arr.passes === 2 && !window.__shiyin.state.busy, null, { timeout: 30000 });
+  ok('Optional refinement completes and preserves prior versions', (await page.textContent('#concept')).includes('这次打磨的修改') && (await page.textContent('#verList')).includes('打磨前保留'));
+  const beforeFailure = await page.evaluate(() => JSON.stringify(__shiyin.state.arr));
+  await page.route('**/api/refine', route => route.fulfill({status:502,contentType:'application/json',body:JSON.stringify({error:'Test failure'})}));
+  await page.click('#refineBtn');
+  await page.waitForFunction(() => !window.__shiyin.state.busy);
+  ok('A failed refinement preserves the current arrangement', beforeFailure === await page.evaluate(() => JSON.stringify(__shiyin.state.arr)));
+  await page.unroute('**/api/refine');
   const total = await page.textContent('#songTotal');
   const sec = (m => +m[1] * 60 + +m[2])(total.match(/(\d+):(\d\d)/));
   ok('Full song lasts at least 2:30', sec >= 150, total);

@@ -2012,7 +2012,7 @@ function fromSongPlan(p,prev,locked){
   fillMore(a,st,prev,locked);
   a.title=String(p.title||'').slice(0,20); a.concept=String(p.concept||'').slice(0,200);
   a.review=(Array.isArray(p.review)?p.review:[]).map(x=>String(x).slice(0,120)).slice(0,6).concat((Array.isArray(p.checks)?p.checks:[]).map(String),extNotes);
-  a.passes=p.passes||1;
+  a.passes=p.passes||1; a.aiPlan=JSON.parse(JSON.stringify(p));
   a.fromSong=true; a.progFull=cp.length>4?cp.slice(0,8):null; a.progFullSig=progSig(a.prog);
   a.explain=explainFor(a);
   // Provide engine fallbacks for harmony and melody omitted from the plan.
@@ -2889,8 +2889,16 @@ function renderConcept(){
   box.appendChild(h);
   if(a.concept){const p=document.createElement('p');p.textContent=a.concept;box.appendChild(p);}
   if(a.review&&a.review.length){
-    const l=document.createElement('div'); l.className='lbl'; l.textContent='第二轮改了什么'; box.appendChild(l);
+    const l=document.createElement('div'); l.className='lbl'; l.textContent=a.passes>=2?'这次打磨的修改':'程序检查'; box.appendChild(l);
     const ul=document.createElement('ul'); a.review.forEach(t=>{const li=document.createElement('li');li.textContent=t;ul.appendChild(li);}); box.appendChild(ul);
+  }
+  if(a.aiPlan && state.backend?.ok){
+    const form=document.createElement('div'); form.style.marginTop='16px';
+    const label=document.createElement('label'); label.textContent='想怎么打磨（选填）'; label.htmlFor='refineDirection';
+    const input=document.createElement('input'); input.id='refineDirection'; input.type='text'; input.maxLength=500; input.placeholder='例如：副歌更抓耳，保留中间的停顿'; input.style.cssText='display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:10px 12px;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px';
+    const button=document.createElement('button'); button.id='refineBtn'; button.type='button'; button.className='btn dark'; button.textContent=state.busy?'制作中…':'再打磨一次'; button.disabled=!!state.busy; button.onclick=()=>polish(input.value);
+    const note=document.createElement('p'); note.className='sub'; note.textContent='可选，会额外调用模型。基于这份 AI 方案修改，手动调整请写进要求；当前版本会保留在历史中。';
+    form.append(label,input,button,note); box.appendChild(form);
   }
 }
 /* Display full-song harmony by section type, including chords and their purpose. */
@@ -3160,7 +3168,7 @@ async function generate(){
   if(state.backend&&state.backend.ok){
     state.busy=true; const btn=$('genBtn'); btn.disabled=true;
     let stage='draft';
-    const t0=Date.now(), tick=()=>{const sec=Math.round((Date.now()-t0)/1000);btn.textContent=`制作中 ${sec}s`;$('genNote').hidden=false;$('genNote').textContent=stage==='review'?`第二轮：另一位"挑剔的制作人"正在审初稿、改掉平庸和套路的地方……`:`${state.backend.label} 正在写整首歌的方案：结构、每段的和声、律动、旋律和处理手法……（初稿 + 自我修改两轮，通常 1–3 分钟）`;};
+    const t0=Date.now(), tick=()=>{const sec=Math.round((Date.now()-t0)/1000);btn.textContent=`制作中 ${sec}s`;$('genNote').hidden=false;$('genNote').textContent=stage==='review'?`制作人正在按要求修改编曲……`:`${state.backend.label} 正在写整首歌的方案：结构、每段的和声、律动、旋律和处理手法……（默认先生成一版，完成后可以选择再打磨）`;};
     tick(); const timer=setInterval(tick,1000);
     try{
       const r=await fetch('/api/arrange',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mood:mood+ctlHints(),style:forced})});
@@ -3187,7 +3195,7 @@ async function generate(){
         state.arr=R.arr; state.arr.mood=mood; state.song=R.song; state.extra=R.extra; state.keepExtra=true;
         state.sel=Math.max(0,state.song.findIndex(x=>x.type==='chorus'));
         render(LAYERS); if(state.mode!=='song') setMode('song'); record(mood,state.backend.label);
-        const S=state.S; toast(`《${state.arr.title||'未命名'}》写好了：${state.song.length} 段、${S.bars} 小节、约 ${fmtTime(S.bars*240/state.arr.bpm)}，用时 ${Math.round(j.ms/1000)} 秒。下面"制作人的构思"里有这首歌的想法和第二轮改了什么。`);
+        const S=state.S; toast(`《${state.arr.title||'未命名'}》写好了：${state.song.length} 段、${S.bars} 小节、约 ${fmtTime(S.bars*240/state.arr.bpm)}，用时 ${Math.round(j.ms/1000)} 秒。下面“制作人的构思”里有这首歌的想法；试听后可以选择再打磨一次。`);
         return;
       }
       state.arr=fromPlan(j.plan,prev,locked); state.arr.mood=mood;
@@ -3198,10 +3206,40 @@ async function generate(){
     }catch(err){
       state.arr=compose(mood,pickStyle(),prev,locked); newForm(); render(LAYERS); record(mood);
       toast('大模型这次没有返回可用结果（'+String(err.message||err).slice(0,60)+'），已用本地引擎生成。');
-    }finally{clearInterval(timer);$('genNote').hidden=true;state.busy=false;btn.disabled=false;btn.textContent='生成';}
+    }finally{clearInterval(timer);$('genNote').hidden=true;state.busy=false;btn.disabled=false;btn.textContent='生成';renderConcept();}
     return;
   }
   state.arr=compose(mood,pickStyle(),prev,locked); newForm(); render(LAYERS); record(mood);
+}
+async function polish(direction){
+  if(state.busy || !state.arr.aiPlan || !state.backend?.ok) return;
+  const source=JSON.parse(JSON.stringify(state.arr.aiPlan)), mood=state.arr.mood||state.mood||'继续打磨这首歌';
+  commit(); record(mood,'打磨前保留');
+  state.busy=true; $('genBtn').disabled=true; renderConcept();
+  const before=snap(), t0=Date.now();
+  const tick=()=>{$('genNote').hidden=false;$('genNote').textContent=`制作人正在按你的要求打磨，已等待 ${Math.round((Date.now()-t0)/1000)} 秒；原版本已保留。`;};
+  tick(); const timer=setInterval(tick,1000);
+  try{
+    const r=await fetch('/api/refine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mood,plan:source,direction})});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||'打磨请求失败');
+    let result;
+    for(;;){
+      if(Date.now()-t0>12*60*1000) throw new Error('等待超时，原版本已保留');
+      await new Promise(resolve=>setTimeout(resolve,3000));
+      const q=await fetch('/api/job?id='+encodeURIComponent(j.job),{cache:'no-store'}).then(x=>x.json()).catch(()=>null);
+      if(!q) continue;
+      if(q.status==='done'){result=q;break;}
+      if(q.status==='error'||q.error) throw new Error(q.error||'打磨失败');
+    }
+    if(result.plan?.validation?.review!=='complete') throw new Error('修改未通过检查，保留当前版本');
+    const R=fromSongPlan(result.plan,null,{});
+    const apply=()=>{state.arr=R.arr;state.arr.mood=mood;state.song=R.song;state.extra=R.extra;state.keepExtra=true;state.sel=Math.max(0,state.song.findIndex(x=>x.type==='chorus'));render(LAYERS);};
+    if(snap()!==before){
+      const current=snap(); apply(); record(mood,'AI 打磨结果'); restore(current);
+      toast('打磨结果已存入版本历史；你等待时的手动调整已保留。');
+    }else{apply();if(state.mode!=='song')setMode('song');record(mood,'AI 打磨');toast('打磨完成，可在版本历史里对比原版。');}
+  }catch(error){toast('这次打磨没有替换当前版本：'+String(error.message||error).slice(0,100));}
+  finally{clearInterval(timer);state.busy=false;$('genBtn').disabled=false;$('genNote').hidden=true;renderConcept();}
 }
 let toastT=null;
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;},3600);}

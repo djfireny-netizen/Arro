@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { planIssues } from './song-contract.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -136,7 +137,7 @@ const server = http.createServer(async (req, res) => {
         'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
       return res.end(req.method === 'HEAD' ? undefined : bytes);
     }
-    const { P, KEY, PROVIDER, arrange } = await AI();
+    const { P, KEY, PROVIDER, arrange, refine } = await AI();
     if (req.method === 'POST' && url.pathname === '/api/login') {
       const ip = clientIP(req), n = fails.get(ip) || 0;
       if (n >= 10) return send(res, 429, { error: '试错太多次了，请 10 分钟后再来' });
@@ -175,24 +176,30 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/health') {
       return send(res, 200, { service: 'shiyin', ok: Boolean(KEY && P.model), provider: PROVIDER, label: P.label, model: P.model || '(未设置)', keyEnv: P.keyEnv, icp: process.env.ICP_NUMBER || '', police: process.env.POLICE_NUMBER || '' });
     }
-    if (req.method === 'POST' && url.pathname === '/api/arrange') {
+    if (req.method === 'POST' && ['/api/arrange', '/api/refine'].includes(url.pathname)) {
       if (!KEY) return send(res, 400, { error: `还没有设置 ${P.keyEnv}` });
       if (!P.model) return send(res, 400, { error: '还没有设置模型名称' });
       if (!originOK(req)) return send(res, 403, { error: '来源不被允许' });
       const ip = clientIP(req), why = quota(ip, isEval(req));
       if (why) return send(res, 429, { error: why });
+      const refining = url.pathname === '/api/refine';
       let raw = '';
-      for await (const chunk of req) { raw += chunk; if (raw.length > 4000) break; }
-      const body = JSON.parse(raw || '{}');
+      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > (refining ? 131072 : 4000)) return send(res, 413, { error: '请求内容过长' }); }
+      let body;
+      try { body = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: '请求格式错误' }); }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { error: '请求格式错误' });
+      if (refining && planIssues(body.plan).length) return send(res, 400, { error: '原方案未通过数据检查' });
       const mood = String(body.mood || '').slice(0, 120).trim();
       const style = /^[a-z]{2,16}$/.test(String(body.style || '')) ? String(body.style) : null;
       if (!mood) return send(res, 400, { error: '请先描述一个画面' });
       // Long generation jobs return an ID immediately; polling avoids gateway request timeouts.
       const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-      const job = { status: 'running', stage: 'draft', t0: Date.now() };
+      const job = { status: 'running', stage: refining ? 'review' : 'draft', t0: Date.now() };
       jobs.set(id, job);
       running++; ipCount.set(ip, (ipCount.get(ip) || 0) + 1); dayCount++;
-      arrange(mood, style, st => { job.stage = st; })
+      const onStage = st => { job.stage = st; };
+      const task = refining ? refine(body.plan, mood, String(body.direction || '').slice(0, 500), onStage) : arrange(mood, style, onStage);
+      task
         .then(plan => { job.status = 'done'; job.plan = plan; job.ms = Date.now() - job.t0;
           console.log(`[${P.label}] ${mood} → ${plan.style} ${plan.key}${plan.mode === 'minor' ? 'm' : ''} ${plan.bpm}BPM (${job.ms}ms)`); })
         .catch(e => { job.status = 'error'; job.error = String(e && e.message || e); console.error(e); })

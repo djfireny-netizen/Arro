@@ -4,7 +4,7 @@
 
 # ARRO
 
-**Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the whole song (form, harmony, grooves, melodies, production moves), then reviews and revises its own draft. You tweak it with a few sliders and export multitrack MIDI and audio into your DAW. The UI is in Chinese; the code runs anywhere with Node.js 18+.
+**Describe a scene, get a full arrangement.** An LLM acts as the producer: it writes the whole song (form, harmony, grooves, melodies, production moves), with optional revision after listening. You tweak it with a few sliders and export multitrack MIDI and audio into your DAW. The UI is in Chinese; the code runs anywhere with Node.js 18+.
 
 描述一个画面，由大模型担任"制作人"写出整首编曲（曲式、和声、律动、旋律、制作手法），再以挑剔的 A&R 身份复审修改一遍。编曲人用推子微调后，导出分轨 MIDI 和音频，拖进宿主继续做。
 
@@ -36,11 +36,11 @@
 
 ## 大模型当制作人（默认）
 
-接上大模型后点"生成"，大模型会为这首歌写一份完整的编曲方案：结构和每段长度、每段的和声、几套不同的律动（鼓、贝斯、和弦节奏）、主歌 / 预副歌 / 副歌 / 桥段各自的旋律、每段谁出场、用哪些制作手法（过门、全停、半速、叠八度、三度和声、对位旋律、滤波扫频、升调等），以及每一段"为什么这样处理"。然后再调用一次，让它以挑剔制作人的身份审初稿、改掉平庸和套路的地方。网页负责照着方案演奏、检查冲突，缺的部分用本地引擎补。整首时长按速度控制在约 2:40–3:30。
+接上大模型后点"生成"，大模型会为这首歌写一份完整的编曲方案：结构和每段长度、每段的和声、几套不同的律动（鼓、贝斯、和弦节奏）、主歌 / 预副歌 / 副歌 / 桥段各自的旋律、每段谁出场、用哪些制作手法（过门、全停、半速、叠八度、三度和声、对位旋律、滤波扫频、升调等），以及每一段"为什么这样处理"。默认只生成一版，程序检查格式和演奏数据，必要时最多进行一次技术修复。试听后可以点击“再打磨一次”，填写想修改的方向，再调用模型。网页负责照着方案演奏、检查冲突，缺的部分用本地引擎补。整首时长按速度控制在约 2:40–3:30。
 
-生成完在"展开成一首歌"上方能看到"制作人的构思"和"第二轮改了什么"，点每个段落能看到这一段的处理想法。
+生成完在"展开成一首歌"上方能看到"制作人的构思"；主动打磨后还能看到修改说明，点每个段落能看到这一段的处理想法。
 
-两轮大约 1–2 分钟。想更快可以在 `.env` 里设 `ARRANGE_PASSES=1`（只写初稿），或 `ARRANGE_MODE=loop`（回到只写 4 小节的旧方式）。"换一个"、"三个方向"和各个滑杆仍然用本地引擎，秒出、不花钱。
+默认 `ARRANGE_PASSES=1`，设为 `2` 可恢复自动两轮。打磨基于保存的 AI 方案，手动改动请写进要求；失败保留当前版本，等待时的手动修改也会保留。选定方案为 `PROVIDER=aihubmix`、`AIHUBMIX_MODEL=claude-opus-5-5`、`PROMPT_LANGUAGE=en`。模型 API Key 只填入本机 `.env` 的 `AIHUBMIX_API_KEY`，不要使用账户管理 Access Key。界面和模型面向用户的文字仍使用中文。`ARRANGE_MODE=loop` 可回到旧的 4 小节方式。"换一个"、"三个方向"和各个滑杆仍然用本地引擎，秒出、不花钱。
 
 ## 两种用法
 

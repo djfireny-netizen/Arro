@@ -3,9 +3,12 @@
 
 import { measure, flags, fmt, playedBars } from './eval/metrics.mjs';
 import { planIssues } from './song-contract.mjs';
+import { readFileSync } from 'node:fs';
+import { completionFetch } from './model-transport.mjs';
 
 // Switchable model providers using OpenAI-compatible APIs.
 const PROVIDERS = {
+  aihubmix: { label: 'Claude', baseURL: 'https://aihubmix.com/v1', keyEnv: 'AIHUBMIX_API_KEY', model: process.env.AIHUBMIX_MODEL || 'claude-opus-5-5', json: false },
   qwen:     { label: '千问',     baseURL: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1', keyEnv: 'DASHSCOPE_API_KEY', model: process.env.QWEN_MODEL || 'qwen-plus', json: true },
   deepseek: { label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1',                       keyEnv: 'DEEPSEEK_API_KEY',  model: process.env.DEEPSEEK_MODEL || 'deepseek-chat', json: true },
   doubao:   { label: '豆包',     baseURL: 'https://ark.cn-beijing.volces.com/api/v3',          keyEnv: 'ARK_API_KEY',       model: process.env.DOUBAO_MODEL || '', json: false },
@@ -14,6 +17,9 @@ const PROVIDERS = {
 export const PROVIDER = (process.env.PROVIDER || 'qwen').toLowerCase();
 export const P = PROVIDERS[PROVIDER] || PROVIDERS.qwen;
 export const KEY = P.keyEnv ? process.env[P.keyEnv] : 'mock';
+const ENGLISH = (process.env.PROMPT_LANGUAGE || (PROVIDER === 'aihubmix' ? 'en' : 'zh')) === 'en';
+const EN_SONG = readFileSync(new URL('./prompts/song.en.txt', import.meta.url), 'utf8');
+const EN_CRITIC = readFileSync(new URL('./prompts/critic.en.txt', import.meta.url), 'utf8');
 
 const SYSTEM = `你是一位一线流行音乐制作人兼编曲老师，帮新手把"一个画面或心情"变成一段 4 小节、4/4 拍、可以循环的副歌编曲。它会被自动展开成整首歌，所以这 4 小节要有做成热门单曲的潜质：一听就有记忆点，但不俗套、不口水，编曲要有当下的审美。
 只输出一个 JSON 对象，不要任何解释文字，不要代码块标记。
@@ -196,7 +202,11 @@ async function callLLM(system, user, temperature, deadline = Infinity) {
   if (P.json) body.response_format = { type: 'json_object' };
   // Qwen 3 thinking can take several minutes; default to direct generation. Set QWEN_THINKING=1 to enable thinking.
   if (PROVIDER === 'qwen' && process.env.QWEN_THINKING !== '1') body.enable_thinking = false;
-  const r = await fetch(P.baseURL + '/chat/completions', {
+  if (PROVIDER === 'aihubmix') {
+    delete body.temperature; delete body.max_tokens;
+    body.max_completion_tokens = 16000; body.reasoning_effort = 'medium';
+  }
+  const r = await (PROVIDER === 'aihubmix' ? completionFetch : fetch)(P.baseURL + '/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + KEY },
     body: JSON.stringify(body),
@@ -210,11 +220,12 @@ async function callLLM(system, user, temperature, deadline = Infinity) {
 const repairRequest = (request, candidate, issues) => `${request}\n\n【返回格式和演奏数据核对】\n${issues.slice(0, 30).join('\n')}\n请修复这些具体问题，并返回包含全部字段的完整方案 JSON。音乐处理由你决定。${candidate ? `\n上次返回：\n${JSON.stringify(candidate)}` : ''}`;
 const retryable = e => ![401, 403, 429].includes(e?.status) && !/timeout|aborted|时间上限|HTTP (401|403|429)/i.test(String(e?.name) + String(e?.message));
 
-// Two musical passes, with at most one technical repair per pass and a shared deadline.
+// One musical pass by default; explicit legacy review and each technical repair are bounded.
 async function arrangeSong(mood, style, onStage = () => {}) {
   if (PROVIDER === 'mock') {
     await new Promise(r => setTimeout(r, 900));
-    return { ...structuredClone(MOCK_SONG), title: '演示：' + mood.slice(0, 8), passes: 2 };
+    const twoPass = process.env.ARRANGE_PASSES === '2';
+    return finalize({ ...structuredClone(MOCK_SONG), title: '演示：' + mood.slice(0, 8), passes: twoPass ? 2 : 1, review: twoPass ? MOCK_SONG.review : [], validation: { schema: true, review: twoPass ? 'complete' : 'skipped', durationWithinTarget: true } });
   }
   const deadline = Date.now() + 450000;
   const generation = { draftAttempts: 0, reviewAttempts: 0 };
@@ -224,7 +235,7 @@ async function arrangeSong(mood, style, onStage = () => {}) {
   for (let i = 0; i < 2; i++) {
     try {
       generation.draftAttempts++;
-      candidate = await callLLM(SONG_SYSTEM, i ? repairRequest(ask, candidate, issues) : ask, 1.0, deadline);
+      candidate = await callLLM(ENGLISH ? EN_SONG : SONG_SYSTEM, i ? repairRequest(ask, candidate, issues) : ask, 1.0, deadline);
       if (style && candidate && typeof candidate === 'object') candidate.style = style;
       issues = planIssues(candidate);
       if (!issues.length) { draft = candidate; break; }
@@ -235,15 +246,22 @@ async function arrangeSong(mood, style, onStage = () => {}) {
   }
   if (!draft) throw lastError || new Error('大模型没有返回有效的整首方案：' + issues.slice(0, 3).join('；'));
   const draftDurationOK = planIssues(draft, { duration: true }).length === 0;
-  if (process.env.ARRANGE_PASSES === '1') return finalize({ ...draft, passes: 1, generation,
+  if (process.env.ARRANGE_PASSES !== '2') return finalize({ ...draft, passes: 1, generation,
     validation: { schema: true, review: 'skipped', durationWithinTarget: draftDurationOK } });
+  return reviseDraft(draft, mood, '', style, onStage, deadline, generation);
+}
+
+async function reviseDraft(draft, mood, direction, style, onStage, deadline, generation) {
+  const draftDurationOK = planIssues(draft, { duration: true }).length === 0;
+  let candidate, issues = [];
   onStage('review', draft);
   const request = `画面或心情：${mood}\n初稿：\n${JSON.stringify(draft)}\n\n${measureText(draft)}`;
+  const instructions = direction ? `\n用户希望这次重点修改：${direction}` : '';
   candidate = undefined; issues = [];
   for (let i = 0; i < 2; i++) {
     try {
       generation.reviewAttempts++;
-      candidate = await callLLM(CRITIC_SYSTEM, i ? repairRequest(request, candidate, issues) : request, 0.7, deadline);
+      candidate = await callLLM(ENGLISH ? EN_CRITIC : CRITIC_SYSTEM, i ? repairRequest(request + instructions, candidate, issues) : request + instructions, 0.7, deadline);
       if (style && candidate && typeof candidate === 'object') candidate.style = style;
       issues = planIssues(candidate, { review: true, duration: true });
       if (!issues.length) return finalize({ ...candidate, passes: 2, draftTitle: draft.title, generation,
@@ -257,6 +275,18 @@ async function arrangeSong(mood, style, onStage = () => {}) {
   return finalize({ ...draft, passes: 1, generation,
     validation: { schema: true, review: 'failed', durationWithinTarget: draftDurationOK },
     review: [`第二轮修改未通过完整性核对（${issues.slice(0, 3).join('；')}），当前保留初稿。`] });
+}
+
+// Optional musical revision is a separate user-triggered operation.
+export async function refine(plan, mood, direction = '', onStage = () => {}) {
+  const issues = planIssues(plan);
+  if (issues.length) throw new Error('原方案未通过数据检查：' + issues.slice(0, 3).join('；'));
+  const draft = structuredClone(plan);
+  if (PROVIDER === 'mock') {
+    onStage('review');
+    return finalize({ ...draft, passes: 2, review: ['演示修改：保留原有结构与旋律', '演示修改：保留原有和声与律动', '演示模式只展示可选打磨流程'], validation: { schema: true, review: 'complete', durationWithinTarget: planIssues(draft, { duration: true }).length === 0 } });
+  }
+  return reviseDraft(draft, String(mood).slice(0, 120), String(direction).slice(0, 500), null, onStage, Date.now() + 450000, { draftAttempts: 0, reviewAttempts: 0 });
 }
 
 /* ============ Program measurements: factual review context and output consistency ============ */
