@@ -1,3 +1,5 @@
+import { createJobJournal } from './storage/jobs.mjs';
+import { revisionContext } from './core/revision.mjs';
 // Arro local HTTP service.
 // Serve the interface and call model APIs while keeping credentials on the server.
 // Run with node server.mjs; requires Node.js 18 or later, with no runtime dependencies.
@@ -7,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual, randomUUID, randomBytes } from 'node:crypto';
 import { planIssues } from './song-contract.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -31,9 +33,8 @@ const PER_DAY = Number(process.env.RATE_LIMIT_PER_DAY || 0);      // 0 means unl
 const MAX_CONC = Number(process.env.MAX_CONCURRENT || 4);
 const ALLOWED = (process.env.ALLOWED_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
-let day = '', ipCount = new Map(), dayCount = 0, running = 0;
-const jobs = new Map();
-setInterval(() => { const now = Date.now(); for (const [k, j] of jobs) if (now - j.t0 > 15 * 60 * 1000) jobs.delete(k); }, 60000).unref();
+const jobs=await createJobJournal(process.env.ARRO_JOB_DIR||path.join(DIR,'.arro-data'),{maxRunning:MAX_CONC});
+const hash=text=>createHash('sha256').update(text).digest('hex');
 function clientIP(req) {
   if (TRUST_PROXY) {
     const x = String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -45,11 +46,9 @@ function clientIP(req) {
 const EVAL_TOKEN = process.env.EVAL_TOKEN || '';
 const isEval = req => EVAL_TOKEN.length >= 16 && String(req.headers['x-eval-token'] || '') === EVAL_TOKEN;
 function quota(ip, evalRun) {
-  const d = new Date().toISOString().slice(0, 10);
-  if (d !== day) { day = d; ipCount = new Map(); dayCount = 0; }
-  if (PER_DAY && dayCount >= PER_DAY) return '今天全站的大模型额度用完了，已改用本地引擎。明天再来试试。';
-  if (PER_IP && !evalRun && (ipCount.get(ip) || 0) >= PER_IP) return `你今天已经用了 ${PER_IP} 次大模型生成，已改用本地引擎（本地引擎不限次数）。`;
-  if (running >= MAX_CONC) return '现在用的人有点多，请过一分钟再试。';
+  const used=jobs.usage(hash(ip));
+  if(PER_DAY&&used.site>=PER_DAY)return '今天全站的大模型额度用完了。当前作品已保留，明天可以再试。';
+  if(PER_IP&&!evalRun&&used.ip>=PER_IP)return `今天已使用 ${PER_IP} 次生成。当前作品已保留，也可以主动选择本地编曲。`;
   return null;
 }
 function originOK(req) {
@@ -73,6 +72,14 @@ function authed(req) {
   if (!INVITE.length) return true;
   const t = cookie(req, 'sy_inv');
   return t.length === 40 && TOKENS.some(x => timingSafeEqual(Buffer.from(x), Buffer.from(t)));
+}
+function jobOwner(req,res){
+  let session=cookie(req,'arro_session');
+  if(!/^[a-f0-9]{64}$/.test(session)){
+    session=randomBytes(32).toString('hex');
+    res.setHeader('Set-Cookie',`arro_session=${session}; Path=/; Max-Age=7776000; HttpOnly; SameSite=Lax${TRUST_PROXY||req.headers['x-forwarded-proto']==='https'?'; Secure':''}`);
+  }
+  return hash('arro-job-owner:'+cookie(req,'sy_inv')+':'+session);
 }
 function loginPage() {
   const icp = process.env.ICP_NUMBER || '';
@@ -137,7 +144,7 @@ const server = http.createServer(async (req, res) => {
         'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
       return res.end(req.method === 'HEAD' ? undefined : bytes);
     }
-    const { P, KEY, PROVIDER, arrange, refine } = await AI();
+    const { P, KEY, PROVIDER, arrange, refine, reviseClip, withTelemetry } = await AI();
     if (req.method === 'POST' && url.pathname === '/api/login') {
       const ip = clientIP(req), n = fails.get(ip) || 0;
       if (n >= 10) return send(res, 429, { error: '试错太多次了，请 10 分钟后再来' });
@@ -155,11 +162,15 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname.startsWith('/api/')) return send(res, 401, { error: '请先输入邀请码（刷新页面）' });
       return send(res, url.pathname === '/' || url.pathname === '/index.html' ? 200 : 401, loginPage(), 'text/html; charset=utf-8');
     }
+    const owner=jobOwner(req,res);
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       const page = await readFile(path.join(DIR, 'index.html'), 'utf8');
       return send(res, 200,
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + page + '</body></html>',
         'text/html; charset=utf-8');
+    }
+    if (req.method === 'GET' && ['/core/project.mjs', '/core/commands.mjs', '/core/revision.mjs', '/core/document.mjs', '/storage/projects.mjs'].includes(url.pathname)) {
+      return send(res, 200, await readFile(path.join(DIR, url.pathname.slice(1)), 'utf8'), 'text/javascript; charset=utf-8');
     }
     if (req.method === 'GET' && url.pathname.startsWith('/samples/')) {
       const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
@@ -174,47 +185,52 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>采样来源与授权</title><style>body{font:15px/1.7 system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;color:#18191b;background:#e4e5e0}pre{white-space:pre-wrap}</style></head><body><pre>' + esc + '</pre></body></html>', 'text/html; charset=utf-8');
     }
     if (req.method === 'GET' && url.pathname === '/api/health') {
-      return send(res, 200, { service: 'shiyin', ok: Boolean(KEY && P.model), provider: PROVIDER, label: P.label, model: P.model || '(未设置)', keyEnv: P.keyEnv, icp: process.env.ICP_NUMBER || '', police: process.env.POLICE_NUMBER || '' });
+      return send(res, 200, { service: 'shiyin', version: '1.1.0', ok: Boolean(KEY && P.model), provider: PROVIDER, label: P.label, model: P.model || '(未设置)', keyEnv: P.keyEnv, icp: process.env.ICP_NUMBER || '', police: process.env.POLICE_NUMBER || '' });
     }
-    if (req.method === 'POST' && ['/api/arrange', '/api/refine'].includes(url.pathname)) {
+    if (req.method === 'POST' && ['/api/arrange', '/api/refine', '/api/revise-clip'].includes(url.pathname)) {
       if (!KEY) return send(res, 400, { error: `还没有设置 ${P.keyEnv}` });
       if (!P.model) return send(res, 400, { error: '还没有设置模型名称' });
       if (!originOK(req)) return send(res, 403, { error: '来源不被允许' });
-      const ip = clientIP(req), why = quota(ip, isEval(req));
-      if (why) return send(res, 429, { error: why });
-      const refining = url.pathname === '/api/refine';
+      const ip=clientIP(req);
+      const refining = url.pathname === '/api/refine', scoped = url.pathname === '/api/revise-clip';
       let raw = '';
-      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > (refining ? 131072 : 4000)) return send(res, 413, { error: '请求内容过长' }); }
+      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > (scoped ? 12582912 : refining ? 131072 : 4000)) return send(res, 413, { error: '请求内容过长' }); }
       let body;
       try { body = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: '请求格式错误' }); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { error: '请求格式错误' });
       if (refining && planIssues(body.plan).length) return send(res, 400, { error: '原方案未通过数据检查' });
+      if(scoped) {
+        try { revisionContext(body.project,body.scope); } catch { return send(res,400,{error:'工程或修改范围无效，请重新选择片段'}); }
+        if(typeof body.direction!=='string'||!body.direction.trim()||body.direction.length>500) return send(res,400,{error:'请用 500 字以内描述修改方向'});
+      }
       const mood = String(body.mood || '').slice(0, 120).trim();
       const style = /^[a-z]{2,16}$/.test(String(body.style || '')) ? String(body.style) : null;
-      if (!mood) return send(res, 400, { error: '请先描述一个画面' });
-      // Long generation jobs return an ID immediately; polling avoids gateway request timeouts.
-      const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-      const job = { status: 'running', stage: refining ? 'review' : 'draft', t0: Date.now() };
-      jobs.set(id, job);
-      running++; ipCount.set(ip, (ipCount.get(ip) || 0) + 1); dayCount++;
-      const onStage = st => { job.stage = st; };
-      const task = refining ? refine(body.plan, mood, String(body.direction || '').slice(0, 500), onStage) : arrange(mood, style, onStage);
-      task
-        .then(plan => { job.status = 'done'; job.plan = plan; job.ms = Date.now() - job.t0;
-          console.log(`[${P.label}] ${mood} → ${plan.style} ${plan.key}${plan.mode === 'minor' ? 'm' : ''} ${plan.bpm}BPM (${job.ms}ms)`); })
-        .catch(e => { job.status = 'error'; job.error = String(e && e.message || e); console.error(e); })
-        .finally(() => { running--; });
-      return send(res, 200, { job: id });
+      if (!mood && !scoped) return send(res, 400, { error: '请先描述一个画面' });
+      const requestId=body.requestId??randomUUID();
+      if(typeof requestId!=='string'||!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId))return send(res,400,{error:'请求编号无效'});
+      const {requestId:_,...payload}=body;
+      const fingerprint=hash(JSON.stringify([url.pathname,payload]));
+      const existing=jobs.find(owner,requestId,fingerprint);
+      if(existing)return send(res,200,{job:existing.id,reused:true});
+      const {job,created}=await jobs.prepare({owner,requestId,hash:fingerprint,type:url.pathname,projectId:scoped?body.project.projectId:null,ip:hash(ip)},()=>quota(ip,isEval(req)));
+      if(!created)return send(res,200,{job:job.id,reused:true});
+      const id=job.id;
+      const onStage=stage=>{jobs.update(id,{stage}).catch(()=>console.error('Unable to persist job stage'));};
+      const calls=[];
+      const task=withTelemetry(call=>{calls.push(call);jobs.update(id,{calls:[...calls]}).catch(()=>console.error('Unable to persist usage'));},()=>scoped?reviseClip(body.project,{trackId:body.scope.trackId,clipId:body.scope.clipId},body.direction):refining?refine(body.plan,mood,String(body.direction||'').slice(0,500),onStage):arrange(mood,style,onStage));
+      task.then(plan=>jobs.update(id,{status:'done',plan,ms:Date.now()-job.t0}))
+        .catch(error=>jobs.update(id,{status:'error',error:String(error?.message||error).slice(0,500),ms:Date.now()-job.t0}).catch(()=>console.error('Unable to persist job completion')));
+      return send(res,200,{job:id});
     }
     if (req.method === 'GET' && url.pathname === '/api/job') {
-      const job = jobs.get(url.searchParams.get('id') || '');
+      const job = url.searchParams.has('requestId')?jobs.find(owner,url.searchParams.get('requestId')):jobs.get(owner,url.searchParams.get('id') || '');
       if (!job) return send(res, 404, { error: '任务不存在或已过期' });
       return send(res, 200, { status: job.status, stage: job.stage, plan: job.plan, ms: job.ms || (Date.now() - job.t0), error: job.error, model: P.model });
     }
     send(res, 404, { error: 'not found' });
   } catch (e) {
     console.error(e);
-    send(res, 502, { error: String(e.message || e) });
+    send(res, e.status||502, { error: String(e.message || e) });
   }
 });
 

@@ -1,3 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+const telemetry=new AsyncLocalStorage();
+export const withTelemetry=(sink,task)=>telemetry.run(sink,task);
+import { revisionContext, replacementEvents } from './core/revision.mjs';
 // Arro model integration: providers, prompts, and arrangement generation.
 // Changes are reloaded on the next request; a service restart is unnecessary.
 
@@ -206,6 +210,8 @@ async function callLLM(system, user, temperature, deadline = Infinity) {
     delete body.temperature; delete body.max_tokens;
     body.max_completion_tokens = 16000; body.reasoning_effort = 'medium';
   }
+  const started=Date.now(),info={model:P.model,promptVersion:'arro-1.1',usage:null};
+  try {
   const r = await (PROVIDER === 'aihubmix' ? completionFetch : fetch)(P.baseURL + '/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + KEY },
@@ -213,8 +219,11 @@ async function callLLM(system, user, temperature, deadline = Infinity) {
     signal: AbortSignal.timeout(Math.ceil(timeout))
   });
   const j = await r.json().catch(() => ({}));
+  Object.assign(info,{status:r.status,model:j.model||P.model,usage:j.usage||null,finishReason:j.choices?.[0]?.finish_reason||null});
   if (!r.ok) throw Object.assign(new Error((j.error && (j.error.message || j.error.code)) || j.message || ('HTTP ' + r.status)), { status: r.status });
   return parseJSON(j.choices?.[0]?.message?.content);
+  }catch(error){info.errorClass=error.name||'Error';throw error;}
+  finally{telemetry.getStore()?.({...info,durationMs:Date.now()-started});}
 }
 // A repair includes concrete contract failures and the previous response, with a bounded call budget.
 const repairRequest = (request, candidate, issues) => `${request}\n\n【返回格式和演奏数据核对】\n${issues.slice(0, 30).join('\n')}\n请修复这些具体问题，并返回包含全部字段的完整方案 JSON。音乐处理由你决定。${candidate ? `\n上次返回：\n${JSON.stringify(candidate)}` : ''}`;
@@ -355,3 +364,19 @@ async function arrangeLoop(mood, style) {
 
 
 export { measureText, finalize };   // Exported for evaluation and tests.
+
+// Scoped revision is one producer pass, with technical validation only.
+export async function reviseClip(project, scope, direction) {
+  const context=revisionContext(project,scope);
+  let candidate;
+  if(PROVIDER==='mock') {
+    const clip=project.tracks.find(t=>t.id===scope.trackId).clips.find(c=>c.id===scope.clipId);
+    candidate={projectId:project.projectId,baseRevision:project.revision,...scope,explanation:'演示候选：调整当前片段的第一个音，供对比试听。',
+      notes:clip.events.map((e,i)=>({pitch:i?e.pitch:(e.pitch+1)%128,startTick:e.startTick,durationTicks:Math.min(e.durationTicks,clip.durationTicks-e.startTick),velocity:Math.max(.01,Math.min(1.27,e.velocity))}))};
+  } else {
+    const system=readFileSync(new URL('./prompts/revision.en.txt',import.meta.url),'utf8');
+    candidate=await callLLM(system,JSON.stringify({direction,currentProject:context}),.8,Date.now()+240000);
+  }
+  replacementEvents(project,scope,candidate);
+  return candidate;
+}

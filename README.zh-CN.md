@@ -1,3 +1,5 @@
+> Historical 1.0 translation. For current ARRO 1.1 behavior, setup, and limitations, use the maintained [English README](README.md).
+
 ![ARRO](./site/brand/arro-wordmark-v4.svg)
 
 [English](./README.md) | 简体中文

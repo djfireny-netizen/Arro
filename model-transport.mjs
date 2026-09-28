@@ -1,3 +1,5 @@
+// Model credentials are sent only with normal TLS certificate verification.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED='1';
 // Read OpenAI-compatible SSE responses as completed JSON with normal TLS verification.
 export async function completionFetch(url, options) {
   const body = JSON.parse(options.body);
