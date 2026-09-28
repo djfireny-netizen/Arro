@@ -1,3 +1,4 @@
+import { revisionContext } from './core/revision.mjs';
 // Arro local HTTP service.
 // Serve the interface and call model APIs while keeping credentials on the server.
 // Run with node server.mjs; requires Node.js 18 or later, with no runtime dependencies.
@@ -137,7 +138,7 @@ const server = http.createServer(async (req, res) => {
         'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
       return res.end(req.method === 'HEAD' ? undefined : bytes);
     }
-    const { P, KEY, PROVIDER, arrange, refine } = await AI();
+    const { P, KEY, PROVIDER, arrange, refine, reviseClip } = await AI();
     if (req.method === 'POST' && url.pathname === '/api/login') {
       const ip = clientIP(req), n = fails.get(ip) || 0;
       if (n >= 10) return send(res, 429, { error: '试错太多次了，请 10 分钟后再来' });
@@ -161,7 +162,7 @@ const server = http.createServer(async (req, res) => {
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + page + '</body></html>',
         'text/html; charset=utf-8');
     }
-    if (req.method === 'GET' && ['/core/project.mjs', '/core/commands.mjs', '/core/document.mjs', '/storage/projects.mjs'].includes(url.pathname)) {
+    if (req.method === 'GET' && ['/core/project.mjs', '/core/commands.mjs', '/core/revision.mjs', '/core/document.mjs', '/storage/projects.mjs'].includes(url.pathname)) {
       return send(res, 200, await readFile(path.join(DIR, url.pathname.slice(1)), 'utf8'), 'text/javascript; charset=utf-8');
     }
     if (req.method === 'GET' && url.pathname.startsWith('/samples/')) {
@@ -179,32 +180,36 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/health') {
       return send(res, 200, { service: 'shiyin', ok: Boolean(KEY && P.model), provider: PROVIDER, label: P.label, model: P.model || '(未设置)', keyEnv: P.keyEnv, icp: process.env.ICP_NUMBER || '', police: process.env.POLICE_NUMBER || '' });
     }
-    if (req.method === 'POST' && ['/api/arrange', '/api/refine'].includes(url.pathname)) {
+    if (req.method === 'POST' && ['/api/arrange', '/api/refine', '/api/revise-clip'].includes(url.pathname)) {
       if (!KEY) return send(res, 400, { error: `还没有设置 ${P.keyEnv}` });
       if (!P.model) return send(res, 400, { error: '还没有设置模型名称' });
       if (!originOK(req)) return send(res, 403, { error: '来源不被允许' });
       const ip = clientIP(req), why = quota(ip, isEval(req));
       if (why) return send(res, 429, { error: why });
-      const refining = url.pathname === '/api/refine';
+      const refining = url.pathname === '/api/refine', scoped = url.pathname === '/api/revise-clip';
       let raw = '';
-      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > (refining ? 131072 : 4000)) return send(res, 413, { error: '请求内容过长' }); }
+      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > (scoped ? 12582912 : refining ? 131072 : 4000)) return send(res, 413, { error: '请求内容过长' }); }
       let body;
       try { body = JSON.parse(raw || '{}'); } catch { return send(res, 400, { error: '请求格式错误' }); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return send(res, 400, { error: '请求格式错误' });
       if (refining && planIssues(body.plan).length) return send(res, 400, { error: '原方案未通过数据检查' });
+      if(scoped) {
+        try { revisionContext(body.project,body.scope); } catch { return send(res,400,{error:'工程或修改范围无效，请重新选择片段'}); }
+        if(typeof body.direction!=='string'||!body.direction.trim()||body.direction.length>500) return send(res,400,{error:'请用 500 字以内描述修改方向'});
+      }
       const mood = String(body.mood || '').slice(0, 120).trim();
       const style = /^[a-z]{2,16}$/.test(String(body.style || '')) ? String(body.style) : null;
-      if (!mood) return send(res, 400, { error: '请先描述一个画面' });
+      if (!mood && !scoped) return send(res, 400, { error: '请先描述一个画面' });
       // Long generation jobs return an ID immediately; polling avoids gateway request timeouts.
       const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
       const job = { status: 'running', stage: refining ? 'review' : 'draft', t0: Date.now() };
       jobs.set(id, job);
       running++; ipCount.set(ip, (ipCount.get(ip) || 0) + 1); dayCount++;
       const onStage = st => { job.stage = st; };
-      const task = refining ? refine(body.plan, mood, String(body.direction || '').slice(0, 500), onStage) : arrange(mood, style, onStage);
+      const task = scoped ? reviseClip(body.project, {trackId:body.scope.trackId,clipId:body.scope.clipId}, body.direction) : refining ? refine(body.plan, mood, String(body.direction || '').slice(0, 500), onStage) : arrange(mood, style, onStage);
       task
         .then(plan => { job.status = 'done'; job.plan = plan; job.ms = Date.now() - job.t0;
-          console.log(`[${P.label}] ${mood} → ${plan.style} ${plan.key}${plan.mode === 'minor' ? 'm' : ''} ${plan.bpm}BPM (${job.ms}ms)`); })
+          if(!scoped) console.log(`[${P.label}] ${mood} → ${plan.style} ${plan.key}${plan.mode === 'minor' ? 'm' : ''} ${plan.bpm}BPM (${job.ms}ms)`); })
         .catch(e => { job.status = 'error'; job.error = String(e && e.message || e); console.error(e); })
         .finally(() => { running--; });
       return send(res, 200, { job: id });

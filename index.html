@@ -460,6 +460,24 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
       <button class="btn" id="noteListen" type="button">从这段试听</button>
       <span id="noteEditState" role="status"></span>
     </div>
+    <form id="revisionForm" class="note-tools">
+      <label style="flex:1;min-width:180px">让制作人修改当前片段
+        <input id="revisionDirection" maxlength="500" required placeholder="例如：让这段旋律更舒展，保留开头的动机" style="width:100%;box-sizing:border-box;height:38px;background:var(--roll);color:var(--ink);border:1px solid var(--line);padding:8px;border-radius:4px">
+      </label>
+      <button class="btn" id="revisionGenerate" type="submit">生成候选</button>
+    </form>
+    <div id="revisionCandidate" hidden>
+      <p id="revisionExplanation" class="sub"></p>
+      <div class="note-tools">
+        <button class="btn" id="revisionOriginal" type="button">试听 A · 原版</button>
+        <button class="btn" id="revisionNew" type="button">试听 B · 新版</button>
+        <button class="btn" id="revisionStop" type="button">停止试听</button>
+        <button class="btn dark" id="revisionAccept" type="button">采用新版</button>
+        <button class="btn" id="revisionDiscard" type="button">放弃候选</button>
+      </div>
+      <p class="sub">试听包含本段其他轨道。采用前保留原版；候选仅保留在当前页面。音色的人性化处理可能使每次试听略有差别。</p>
+    </div>
+    <p id="revisionStatus" class="sub" role="status" aria-live="polite">选择段落和轨道，再描述你想怎样修改。</p>
     <div class="note-scroll"><div id="noteGrid" class="note-grid" role="group" aria-label="音符卷帘"></div></div>
     <p id="noteSelection" class="sub">选择一个音符</p>
     <form id="noteForm" class="note-fields">
@@ -2199,7 +2217,8 @@ function buildGraph(c,dest){
   // Final soft clipping rounds off peaks that escape the limiter.
   const sat=c.createWaveShaper(), sc=new Float32Array(2048); for(let i=0;i<2048;i++){const x=i/1023.5-1;sc[i]=Math.tanh(1.3*x)/Math.tanh(1.3);} sat.curve=sc; sat.oversample='2x';
   const master=c.createGain(); master.gain.value=.8;
-  master.connect(tone); tone.connect(low); low.connect(air); air.connect(glue); glue.connect(lim); lim.connect(sat); sat.connect(dest);
+  master.connect(tone); tone.connect(low); low.connect(air); air.connect(glue); glue.connect(lim); lim.connect(sat);
+  const monitor=c.createGain();sat.connect(monitor);monitor.connect(dest);E.monitor=monitor;
   E.master=master; E.tone=tone;
   const len=Math.floor(c.sampleRate*2.4), ir=c.createBuffer(2,len,c.sampleRate);
   for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);}
@@ -2350,6 +2369,8 @@ function drum(L,t,v,out,acoustic){
 }
 
 /* ============ Transport and scheduling ============ */
+let comparisonSource=null, comparisonEpoch=0;
+function stopComparison(){comparisonEpoch++;if(comparisonSource){comparisonSource.stop();comparisonSource.disconnect();comparisonSource=null;}}
 const tp={playing:false,step:0,next:0,timer:null,q:[],cur:-1};
 function source(){return state.mode==='song'?{ev:state.S.ev,len:state.S.bars*16}:{ev:state.D.ev,len:64};}
 function pump(t){
@@ -2404,7 +2425,8 @@ function scheduler(){
   }
 }
 function start(from=0){
-  initAudio(); if(A.ctx.state==='suspended') A.ctx.resume();
+  stopComparison();
+  initAudio(); A.monitor.gain.value=1; if(A.ctx.state==='suspended') A.ctx.resume();
   tp.playing=true; tp.step=from; tp.next=A.ctx.currentTime+.06; tp.q=[]; tp.cur=-1;
   scheduler(); tp.timer=setInterval(scheduler,25);
   rack.style.setProperty('--ph-o','.8');
@@ -2412,6 +2434,7 @@ function start(from=0){
   requestAnimationFrame(frame); setPlayIcon();
 }
 function stop(){
+  stopComparison();
   if(A.tone){A.tone.frequency.cancelScheduledValues(0);A.tone.frequency.setValueAtTime(toneBase(),A.ctx.currentTime);}
   tp.playing=false; clearInterval(tp.timer); tp.q=[]; tp.cur=-1;
   rack.style.setProperty('--ph-o','0'); $('tl').style.setProperty('--tph-o','0');
@@ -2611,7 +2634,7 @@ async function exportMidi(){
 async function renderAudio(solo,onProgress,opt={}){
   initAudio();
   await loadSamples(A.ctx);
-  const a=state.arr, S=state.S, sd=60/a.bpm/4, len=S.bars*16, sr=44100;
+  const a=state.arr, S=opt.performance||state.S, sd=60/a.bpm/4, from=opt.from||0, until=opt.until??S.bars*16, len=until-from, sr=44100;
   const off=new OfflineAudioContext(2,Math.ceil(sr*(len*sd+3)),sr);
   const E=buildGraph(off,off.destination);
   const saved={...A}, savedMuted={...state.muted}, savedVol={...state.vol};
@@ -2622,9 +2645,9 @@ async function renderAudio(solo,onProgress,opt={}){
   try{
     applyMix(A,true);
     if(opt.guide){A.ch.melody.send.gain.setValueAtTime(0,0);A.melDelay.gain.setValueAtTime(0,0);}
-    for(let st=0;st<len;st++){
+    for(let st=from;st<until;st++){
       if(solo&&!S.ev[solo][st].length&&!S.ev.drums[st].some(e=>e[0]==='k')) continue;
-      let t=.05+st*sd+swingOff(st,sd);
+      let t=.05+(st-from)*sd+swingOff(st,sd);
       playStep(S.ev,st,t,sd,solo);
     }
   } finally {
@@ -2957,7 +2980,7 @@ function renderConcept(){
     const input=document.createElement('input'); input.id='refineDirection'; input.type='text'; input.maxLength=500; input.placeholder='例如：副歌更抓耳，保留中间的停顿'; input.style.cssText='display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:10px 12px;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px';
     const button=document.createElement('button'); button.id='refineBtn'; button.type='button'; button.className='btn dark'; button.textContent=state.busy?'制作中…':'再打磨一次'; button.disabled=!!state.busy||hasNoteEdits(); button.onclick=()=>polish(input.value);
     const note=document.createElement('p'); note.className='sub'; note.textContent='可选，会额外调用模型。基于这份 AI 方案修改，手动调整请写进要求；当前版本会保留在历史中。';
-    if(hasNoteEdits())note.textContent='这版含手动音符修改，整曲打磨暂不可用。可以继续编辑、试听和导出。';
+    if(hasNoteEdits())note.textContent='这版含手动音符修改或局部 AI 修改，整曲打磨暂不可用。可以在下方继续局部修改、试听和导出。';
     form.append(label,input,button,note); box.appendChild(form);
   }
 }
@@ -3129,6 +3152,7 @@ function selectNote(id){
 }
 function renderNoteEditor(){
   if(!state.project)return;
+  updateRevisionUI();
   const menu=$('noteSection');menu.replaceChildren();
   state.song.forEach((section,i)=>{const option=document.createElement('option');option.value=i;option.textContent=`${i+1}. ${secName(section)}`;menu.appendChild(option);});
   menu.value=state.sel;$('noteTrack').value=noteEditor.track;
@@ -3155,7 +3179,7 @@ function renderNoteEditor(){
     };
     grid.appendChild(button);
   }
-  $('noteEditState').textContent=clip.edited?(noteEditor.track==='chords'?'已编辑音符 · 和弦名称仍为编曲参考':'已手动编辑 · 再编曲时保留本片段'):`${notes.length} 个音符`;
+  $('noteEditState').textContent=clip.edited?(noteEditor.track==='chords'?'已编辑音符 · 和弦名称仍为编曲参考':'已编辑 · 再编曲时保留本片段'):`${notes.length} 个音符`;
   selectNote(notes.some(e=>e.id===noteEditor.eventId)?noteEditor.eventId:notes[0]?.id??null);
   const selected=notes.find(e=>e.id===noteEditor.eventId),scroller=grid.parentElement;
   if(selected){const top=(high-selected.pitch)*18;if(top<scroller.scrollTop||top+18>scroller.scrollTop+scroller.clientHeight)scroller.scrollTop=Math.max(0,top-60);}
@@ -3188,6 +3212,78 @@ $('noteGrid').onpointerup=e=>{
   if(d.patch&&Object.entries(d.patch).some(([key,value])=>d.event[key]!==value))submitNote(d.patch,d.revision);else renderNoteEditor();
 };
 $('noteGrid').onpointercancel=()=>{noteEditor.drag=null;renderNoteEditor();};
+
+/* ============ Scoped producer revision and non-destructive comparison ============ */
+let revisionCandidate=null, revisionPreviewBusy=false;
+const revisionSignature=()=>JSON.stringify([state.project,state.feel]);
+function updateRevisionUI(){
+  if(revisionCandidate&&revisionCandidate.signature!==revisionSignature()){
+    stopComparison();revisionCandidate=null;$('revisionStatus').textContent='工程已变化，旧候选已失效。可以基于当前版本重新生成。';
+  }
+  $('revisionGenerate').disabled=!!state.busy||!state.backend?.ok||!!revisionCandidate;
+  $('revisionCandidate').hidden=!revisionCandidate;
+  for(const id of ['revisionOriginal','revisionNew'])$(id).disabled=revisionPreviewBusy;
+}
+async function revisionFetch(url,options={}){
+  const r=await fetch(url,{...options,signal:AbortSignal.timeout(30000)});
+  const data=await r.json();if(!r.ok)throw new Error(data.error||'请求失败');return data;
+}
+$('revisionForm').onsubmit=async e=>{
+  e.preventDefault();if(state.busy||revisionCandidate||!state.backend?.ok)return;
+  const direction=$('revisionDirection').value.trim(),clip=selectedClip();if(!direction||!clip)return;
+  const project=structuredClone(state.project),scope={trackId:'track:'+noteEditor.track,clipId:clip.id};
+  const signature=revisionSignature(),label=`${state.sel+1}. ${secName(state.song[state.sel])} · ${META[noteEditor.track].name}`;
+  state.busy=true;$('genBtn').disabled=true;updateRevisionUI();renderConcept();
+  $('revisionStatus').textContent=`制作人正在修改「${label}」；原版保留中。`;
+  const started=Date.now();
+  try {
+    const job=await revisionFetch('/api/revise-clip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project,scope,direction})});
+    if(!job.job)throw new Error('任务未创建');
+    let result;
+    while(Date.now()-started<5*60*1000){
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      const q=await revisionFetch('/api/job?id='+encodeURIComponent(job.job),{cache:'no-store'});
+      if(q.status==='error')throw new Error(q.error||'生成失败');
+      if(q.status==='done'){result=q.plan;break;}
+    }
+    if(!result)throw new Error('等待超时');
+    if(signature!==revisionSignature())throw new Error('等待期间工程已变化，请基于当前版本重新生成');
+    const command={type:'replace-clip',...scope,baseRevision:project.revision,candidate:result};
+    const next=applyCommand(project,command);
+    revisionCandidate={signature,command,original:project,next,clip:structuredClone(clip),label};
+    $('revisionExplanation').textContent=label+'：'+result.explanation;
+    $('revisionStatus').textContent='候选已就绪。试听 A / B 后，选择是否采用。';
+  }catch(error){$('revisionStatus').textContent='原版已保留：'+String(error.message||error).slice(0,140);}
+  finally{state.busy=false;$('genBtn').disabled=false;updateRevisionUI();renderConcept();}
+};
+async function previewRevision(which){
+  updateRevisionUI();const candidate=revisionCandidate;if(!candidate||revisionPreviewBusy)return;
+  stop();initAudio();A.monitor.gain.value=0;
+  const epoch=comparisonEpoch;revisionPreviewBusy=true;updateRevisionUI();
+  $('revisionStatus').textContent='正在准备本段试听…';
+  try{
+    const performance=projectPerformance(which==='A'?candidate.original:candidate.next);
+    const buffer=await renderAudio(null,null,{performance,from:candidate.clip.startTick/120,until:(candidate.clip.startTick+candidate.clip.durationTicks)/120});
+    if(epoch!==comparisonEpoch||candidate!==revisionCandidate||candidate.signature!==revisionSignature())return;
+    await A.ctx.resume();
+    if(epoch!==comparisonEpoch||candidate!==revisionCandidate)return;
+    const source=A.ctx.createBufferSource();source.buffer=buffer;source.connect(A.ctx.destination);comparisonSource=source;
+    source.onended=()=>{source.disconnect();if(comparisonSource===source){comparisonSource=null;$('revisionStatus').textContent='试听结束，可以切换 A / B 或采用新版。';}};
+    source.start();$('revisionStatus').textContent=`正在试听 ${which} · ${which==='A'?'原版':'新版'}：${candidate.label}`;
+  }catch(error){$('revisionStatus').textContent='试听失败，原版已保留：'+String(error.message).slice(0,80);}
+  finally{revisionPreviewBusy=false;updateRevisionUI();}
+}
+$('revisionOriginal').onclick=()=>previewRevision('A');
+$('revisionNew').onclick=()=>previewRevision('B');
+$('revisionStop').onclick=()=>{stopComparison();$('revisionStatus').textContent='试听已停止。';};
+$('revisionDiscard').onclick=()=>{stopComparison();revisionCandidate=null;updateRevisionUI();$('revisionStatus').textContent='已放弃候选，原版保持不变。';};
+$('revisionAccept').onclick=()=>{
+  updateRevisionUI();const candidate=revisionCandidate;if(!candidate)return;
+  stop();revisionCandidate=null;
+  try{runProjectCommand(candidate.command);$('revisionStatus').textContent='已采用新版，可撤销返回原版。';}
+  catch{ $('revisionStatus').textContent='候选未应用，请基于当前工程重新生成。'; }
+  updateRevisionUI();
+};
 
 /* ============ Durable project documents and editor commands ============ */
 // Layout: save status on the left; retry / download / open on the right.
@@ -3230,7 +3326,7 @@ function runProjectCommand(command,gesture=null){
   state.project=next;state.arr.bpm=next.tempo;
   for(const t of next.tracks){state.vol[t.layer]=t.mixer.volume;state.muted[t.layer]=t.mixer.muted;}
   state.projectInput=projectSource();
-  const noteCommand=['update-note','delete-note'].includes(command.type);
+  const noteCommand=['update-note','delete-note','replace-clip'].includes(command.type);
   const switchToSong=noteCommand&&state.mode!=='song';
   if(switchToSong){if(tp.playing)stop();state.mode='song';}
   syncProjectControls();render();if(switchToSong)setMode('song');
@@ -3484,6 +3580,7 @@ let toastT=null;
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;},3600);}
 
 function setStatus(){
+  updateRevisionUI();
   const b=state.backend, chip=$('engineChip'), s=$('status');
   s.textContent='';
   const add=(txt,code)=>{if(code){const c=document.createElement('code');c.textContent=txt;s.appendChild(c);}else s.appendChild(document.createTextNode(txt));};
@@ -3613,6 +3710,6 @@ try {
 } catch(error) { restore(startupSnapshot);saveStatus('error',new Error('本机工程读取失败：'+error.message)); }
 render(); setStatus(); detectBackend(); updUndo(); renderVersions();
 document.querySelector('.app').inert=false;
-window.__shiyin={projectDocument,importProjectText,runProjectCommand,flushProjectSave,projectStore,captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
+window.__shiyin={revisionCandidate:()=>revisionCandidate,comparisonSource:()=>comparisonSource,projectDocument,importProjectText,runProjectCommand,flushProjectSave,projectStore,captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
 })();
 </script>

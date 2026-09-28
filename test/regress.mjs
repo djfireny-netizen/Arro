@@ -303,6 +303,64 @@ try {
   await page.locator('.note-cell').filter({hasText:'G9'}).first().click();await page.click('#noteDelete');
   ok('Deleting a note removes its playback event and remains undoable',await page.evaluate(({clipId,eventId})=>!__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events.some(e=>e.id===eventId),noteTarget));
   await page.click('#undoBtn');ok('Undo brings the deleted note back unchanged',editedEvents===await page.evaluate(clipId=>JSON.stringify(__shiyin.state.project.tracks[3].clips.find(c=>c.id===clipId).events),noteTarget.clipId));
+  // Real mock endpoint + immutable candidate + separate A/B playback.
+  const beforeCandidate=await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument()));
+  let scopedRequest;
+  page.on('request',request=>{if(request.url().endsWith('/api/revise-clip'))scopedRequest=request.postDataJSON();});
+  await page.fill('#revisionDirection','让旋律更舒展');await page.click('#revisionGenerate');
+  await page.waitForFunction(()=>__shiyin.revisionCandidate()&&!__shiyin.state.busy,null,{timeout:15000});
+  ok('Scoped generation receives the current manually edited notes',scopedRequest.project.tracks[3].clips.find(c=>c.id===noteTarget.clipId).events.some(e=>e.pitch===127));
+  ok('Candidate generation leaves the current project untouched',beforeCandidate===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  const candidateNext=await page.evaluate(()=>JSON.stringify(__shiyin.revisionCandidate().next));
+  if(process.env.ARRO_NOTE_SCREENSHOT_PREFIX){
+    await page.locator('.note-editor').screenshot({path:process.env.ARRO_NOTE_SCREENSHOT_PREFIX+'-candidate-desktop.png'});
+    await page.setViewportSize({width:390,height:844});
+    ok('Candidate controls fit the narrow viewport',await page.evaluate(()=>{const el=document.querySelector('#revisionCandidate');return el.getBoundingClientRect().right<=innerWidth&&el.scrollWidth<=el.clientWidth;}));
+    await page.locator('.note-editor').screenshot({path:process.env.ARRO_NOTE_SCREENSHOT_PREFIX+'-candidate-mobile.png'});
+    await page.setViewportSize({width:1280,height:900});
+  }
+
+  await page.click('#revisionOriginal');await page.waitForFunction(()=>!!__shiyin.comparisonSource(),null,{timeout:60000});
+  ok('Original comparison uses a separate audio source without replacing the project',beforeCandidate===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  await page.click('#revisionStop');
+  await page.click('#revisionNew');await page.waitForFunction(()=>!!__shiyin.comparisonSource(),null,{timeout:60000});
+  ok('Candidate comparison leaves project playback and export unchanged',beforeCandidate===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  ok('Comparison audio contains finite, non-silent samples for the selected section',await page.evaluate(()=>{
+    const candidate=__shiyin.revisionCandidate(),buffer=__shiyin.comparisonSource().buffer,data=buffer.getChannelData(0);
+    return Math.abs(buffer.duration-(candidate.clip.durationTicks/480*60/candidate.next.tempo+3))<.001&&data.every(Number.isFinite)&&data.some(v=>Math.abs(v)>.0001);
+  }));
+  await page.click('#revisionStop');await page.click('#revisionAccept');
+  ok('Accept applies the validated candidate in one undoable command',candidateNext===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  await page.click('#undoBtn');ok('Undo returns from the AI candidate to the exact original notes',beforeCandidate===await page.evaluate(()=>JSON.stringify(__shiyin.projectDocument())));
+  await page.click('#redoBtn');
+  await page.evaluate(()=>__shiyin.flushProjectSave());await page.waitForFunction(()=>document.querySelector('#projectSaveState').dataset.state==='saved');
+  await page.reload();await page.waitForFunction(()=>window.__shiyin?.state.project&&__shiyin.state.backend?.ok);
+  ok('Accepted AI clip edits survive reload',candidateNext===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  await page.selectOption('#noteSection',String(noteTarget.section));await page.selectOption('#noteTrack','melody');
+  await page.fill('#revisionDirection','保留动机，调整节奏');await page.click('#revisionGenerate');
+  await page.waitForFunction(()=>__shiyin.revisionCandidate()&&!__shiyin.state.busy);
+  await page.click('#bpmUp');
+  ok('Editing after generation invalidates the old candidate',await page.isHidden('#revisionCandidate')&&!await page.evaluate(()=>!!__shiyin.revisionCandidate()));
+  await page.click('#undoBtn');
+  const beforeDiscard=await page.evaluate(()=>JSON.stringify(__shiyin.state.project));
+  await page.click('#revisionGenerate');await page.waitForFunction(()=>__shiyin.revisionCandidate()&&!__shiyin.state.busy);
+  await page.click('#revisionDiscard');
+  ok('Discarding an AI candidate preserves the current project',beforeDiscard===await page.evaluate(()=>JSON.stringify(__shiyin.state.project)));
+  await page.route('**/api/revise-clip',route=>route.fulfill({status:502,contentType:'application/json',body:JSON.stringify({error:'Mock failure'})}));
+  await page.click('#revisionGenerate');await page.waitForFunction(()=>!__shiyin.state.busy);
+  ok('Scoped generation failure keeps the project and offers retry',beforeDiscard===await page.evaluate(()=>JSON.stringify(__shiyin.state.project))&&await page.isEnabled('#revisionGenerate'));
+  await page.unroute('**/api/revise-clip');
+  await page.route('**/api/job?*',async route=>{await new Promise(r=>setTimeout(r,800));await route.continue();});
+  await page.click('#revisionGenerate');await page.click('#bpmUp');
+  const whileWaiting=await page.evaluate(()=>JSON.stringify(__shiyin.state.project));
+  await page.waitForFunction(()=>!__shiyin.state.busy);
+  ok('A late AI result cannot overwrite edits made while waiting',whileWaiting===await page.evaluate(()=>JSON.stringify(__shiyin.state.project))&&!await page.evaluate(()=>!!__shiyin.revisionCandidate())&&(await page.textContent('#revisionStatus')).includes('工程已变化'));
+  await page.unroute('**/api/job?*');
+  const invalidScope=await page.evaluate(async()=>{
+    const p=structuredClone(__shiyin.state.project);
+    const r=await fetch('/api/revise-clip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project:p,scope:{trackId:'track:drums',clipId:p.tracks[0].clips[0].id},direction:'test'})});return r.status;
+  });
+  ok('The server rejects unsupported scoped revision targets',invalidScope===400);
   if(process.env.ARRO_NOTE_SCREENSHOT_PREFIX){
     const clean=await page.evaluate(editedId=>__shiyin.state.project.tracks[3].clips.findIndex(c=>c.id!==editedId&&c.events.length),noteTarget.clipId);
     await page.selectOption('#noteSection',String(clean));

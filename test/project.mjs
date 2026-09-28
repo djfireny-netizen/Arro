@@ -91,3 +91,25 @@ console.log('Scoped note movement, pitch, duration, velocity, deletion, bounds, 
 const empty=applyCommand(deleted,{type:'delete-note',trackId:'track:melody',clipId:clip.id,eventId:deleted.tracks[3].clips[0].events[0].id,baseRevision:2});
 assert.equal(captureProject({...args,previous:empty,preserveEdited:true}).tracks[3].clips[0].events.length,0,'A manually emptied clip stays silent');
 assert.deepEqual(projectPerformance(captureProject({...args,performance:projectPerformance(noteEdit)})).ev,projectPerformance(noteEdit).ev,'Explicit timing and velocity survive rematerialization');
+
+// Scoped producer candidates read current events and replace exactly one clip.
+const { revisionContext } = await import('../core/revision.mjs');
+const scope={trackId:'track:melody',clipId:project.tracks[3].clips[0].id};
+const current=structuredClone(project);current.tracks[3].clips[0].events[0].pitch=71;
+const context=revisionContext(current,scope);
+assert.equal(context.sections[0].tracks.find(t=>t.layer==='melody').events[0].pitch,71);
+const candidate={projectId:current.projectId,baseRevision:current.revision,...scope,explanation:'测试修改',notes:[
+  {pitch:72,startTick:0,durationTicks:480,velocity:.8},
+  {pitch:67,startTick:0,durationTicks:960,velocity:.5}
+]};
+const command={type:'replace-clip',baseRevision:current.revision,...scope,candidate};
+const replaced=applyCommand(current,command);
+assert.equal(replaced.revision,current.revision+1);
+assert.equal(current.tracks[3].clips[0].events[0].pitch,71);
+for(const t of current.tracks)for(const c of t.clips)if(c.id!==scope.clipId)assert.deepEqual(replaced.tracks.find(x=>x.id===t.id).clips.find(x=>x.id===c.id),c);
+assert.deepEqual(projectPerformance(replaced).ev.melody[0].map(n=>n.slice(0,3)),[[72,4,.8],[67,8,.5]]);
+assert.deepEqual(captureProject({...args,previous:replaced,preserveEdited:true}).tracks[3].clips[0],replaced.tracks[3].clips[0]);
+assert.equal(applyCommand(current,{...command,candidate:{...candidate,notes:[]}}).tracks[3].clips[0].events.length,0);
+for(const change of [{baseRevision:999},{projectId:'other'},{clipId:project.tracks[3].clips[1].id},{notes:[{pitch:70,startTick:0,durationTicks:7800,velocity:.8}]},{notes:[{pitch:128,startTick:0,durationTicks:120,velocity:.8}]},{notes:[{pitch:70,startTick:1,durationTicks:120,velocity:.8}]},{notes:[{pitch:70,startTick:0,durationTicks:120,velocity:0}]},{extra:'unscoped'},{notes:Array(513).fill(candidate.notes[0])}])assert.throws(()=>applyCommand(current,{...command,candidate:{...candidate,...change}}));
+assert.throws(()=>revisionContext(current,{trackId:'track:drums',clipId:current.tracks[0].clips[0].id}));
+console.log('Scoped AI candidates preserve current edits and outside clips; stale identities, scope, and malformed notes are rejected');

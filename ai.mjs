@@ -1,3 +1,4 @@
+import { revisionContext, replacementEvents } from './core/revision.mjs';
 // Arro model integration: providers, prompts, and arrangement generation.
 // Changes are reloaded on the next request; a service restart is unnecessary.
 
@@ -355,3 +356,19 @@ async function arrangeLoop(mood, style) {
 
 
 export { measureText, finalize };   // Exported for evaluation and tests.
+
+// Scoped revision is one producer pass, with technical validation only.
+export async function reviseClip(project, scope, direction) {
+  const context=revisionContext(project,scope);
+  let candidate;
+  if(PROVIDER==='mock') {
+    const clip=project.tracks.find(t=>t.id===scope.trackId).clips.find(c=>c.id===scope.clipId);
+    candidate={projectId:project.projectId,baseRevision:project.revision,...scope,explanation:'演示候选：调整当前片段的第一个音，供对比试听。',
+      notes:clip.events.map((e,i)=>({pitch:i?e.pitch:(e.pitch+1)%128,startTick:e.startTick,durationTicks:Math.min(e.durationTicks,clip.durationTicks-e.startTick),velocity:Math.max(.01,Math.min(1.27,e.velocity))}))};
+  } else {
+    const system=readFileSync(new URL('./prompts/revision.en.txt',import.meta.url),'utf8');
+    candidate=await callLLM(system,JSON.stringify({direction,currentProject:context}),.8,Date.now()+240000);
+  }
+  replacementEvents(project,scope,candidate);
+  return candidate;
+}

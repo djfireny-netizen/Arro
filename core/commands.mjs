@@ -1,3 +1,4 @@
+import { replacementEvents } from './revision.mjs';
 import { validateProject } from './project.mjs';
 
 // Commands are copy-on-write and reject stale requests before changing anything.
@@ -31,6 +32,10 @@ export function applyCommand(project, command) {
       if('durationTicks' in patch) event.render.userTiming=true;
     }
     clip.edited=true;
+  } else if(command.type==='replace-clip') {
+    const events=replacementEvents(project,command,command.candidate);
+    const clip=next.tracks.find(t=>t.id===command.trackId).clips.find(c=>c.id===command.clipId);
+    clip.events=events;clip.edited=true;
   } else throw new Error('Unsupported project command');
   if (JSON.stringify(next) === JSON.stringify(project)) return project;
   next.revision++;
