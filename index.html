@@ -463,7 +463,8 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script>
+<script type="module">
+import {captureProject, projectPerformance} from "/core/project.mjs";
 (() => {
 'use strict';
 /* ============ Music theory primitives ============ */
@@ -822,7 +823,9 @@ const BRIGHT=[[.15,'很暗 · ♭II'],[.35,'暗 · 小调'],[.5,'暗里带光'],
 const brightWord=b=>BRIGHT.find(x=>b<x[0])[1];
 const modeOfBright=b=>b<.5?'minor':'major';
 const brightOf=a=>a.bright??(a.mode==='major'?.72:.28);
+function faithfulPlan(a){return a.planned && a.executionVersion>=2;}
 function colorize(pr,a){
+  if(faithfulPlan(a)) return pr;
   const b=brightOf(a), m=a.mode; if(STYLES[a.styleId]&&STYLES[a.styleId].domAll) return pr;
   const c=b<.15?'phry':b<.35?null:b<.5?'dor':b<.65?'mix':b<.85?null:'lyd'; if(!c) return pr;
   const out=pr.map(x=>({...x})), idx=d=>out.map((x,i)=>!x.chr&&x.deg===d?i:-1).filter(i=>i>=0);
@@ -836,11 +839,11 @@ function colorize(pr,a){
 const toProg=(mode,list,sev)=>list.map(x=>typeof x==='string'?chrChord(mode,x,sev):{deg:x,sev});
 const progKey=pr=>pr.map(p=>p.chr?p.chr.join('.'):p.deg).join(',');
 function chordInfo(a,i){
-  const P=a.prog[i], {deg}=P; const sc=SCALES[a.mode], H=harmLvl();
+  const P=a.prog[i], {deg}=P; const sc=SCALES[a.mode], H=faithfulPlan(a)?.5:harmLvl();
   const sev=H<.3?false:H>.72?true:P.sev;
   const idx=sev?[0,2,4,6]:[0,2,4];
   let semis=P.chr?(P.exact?(H<.3?P.chr.slice(0,3):P.chr.slice()):P.chr.slice(0,sev?4:3)):idx.map(k=>{const d=deg+k;return sc[d%7]+12*Math.floor(d/7);});
-  if(!P.chr&&STYLES[a.styleId]&&STYLES[a.styleId].domAll){const r=semis[0];semis=[r,r+4,r+7].concat(sev?[r+10]:[]);}   // Blues uses dominant sevenths for every chord.
+  if(!faithfulPlan(a)&&!P.chr&&STYLES[a.styleId]&&STYLES[a.styleId].domAll){const r=semis[0];semis=[r,r+4,r+7].concat(sev?[r+10]:[]);}   // Blues uses dominant sevenths for every chord.
   const rel=semis.map(s=>s-semis[0]); const th=rel[1],fi=rel[2],se=rel[3];
   let q='',rn=ROMAN[deg];
   if(th===4&&fi===7){q='';}
@@ -1305,6 +1308,8 @@ const FILLS={
 const FILL_KEYS=Object.keys(FILLS);
 /* Energy changes the density of the same material; 0.5 preserves the original. */
 function energize(a,e){
+  // Explicit producer events are authoritative; energy remains rendering metadata.
+  if(faithfulPlan(a)) return a;
   if(e==null||Math.abs(e-.5)<.04) return a;
   const v={...a}, dots='................', mapS=(str,f)=>[...(str||dots)].map(f).join('');
   const ln={...a.drums.lanes}; let extra=(a.drums.extra||[]).slice();
@@ -1369,7 +1374,7 @@ function derive(a){
   a=energize(a,a.energy??(state.ctl?state.ctl.energy:.5));
   {const cp=colorize(a.prog,a); if(cp!==a.prog){const ref=a.prog;a={...a,prog:cp};if(a.melody&&a.melody.notes.length)a={...a,melody:{...a.melody,notes:fixClash(a.melody.notes,a,ref)}};}}
   let infos=[0,1,2,3].map(i=>chordInfo(a,i));
-  const rich=harmLvl()>.72&&!(STYLES[a.styleId]||{}).domAll;
+  const rich=!faithfulPlan(a)&&harmLvl()>.72&&!(STYLES[a.styleId]||{}).domAll;
   // At high richness, omit roots from extended chord voicings and leave them to the bass, as in jazz/neo-soul voicings.
   const voic=voiceAll(rich?infos.map(c=>c.pcs.length>=4?{...c,pcs:c.pcs.slice(1)}:c):infos);
   const bpc=bassLine(a,infos);
@@ -1407,11 +1412,11 @@ function derive(a){
     // Use a chromatic bass passing tone between roots a whole tone apart, or approach the loop start from a semitone below.
     const chroma=jazzy||['jazz','bossa','funk'].includes(a.styleId)||(harmLvl()>.72&&!['trap','dnb','house','futurebass','chiptune','reggae','guofeng'].includes(a.styleId));
     const nxB=bassRoot((bar+1)%4); let dif=nxB-m; while(dif>6)dif-=12; while(dif<-6)dif+=12;
-    if(bar===3&&a.bass.approach&&bp.length){
+    if(!faithfulPlan(a)&&bar===3&&a.bass.approach&&bp.length){
       bp=bp.filter(x=>x[0]<14).map(([s0,l,r])=>[s0,Math.min(l,14-s0),r]);
       let ap=chroma?(Math.abs(dif)===2?m+dif/2:m+dif-1):bassRoot(0)-5; if(ap<28) ap+=12;
       bp.push([14,2,'A',ap]);
-    } else if(bar<3&&chroma&&Math.abs(dif)===2&&bp.length&&!bp.some(x=>x[2]==='A')){
+    } else if(!faithfulPlan(a)&&bar<3&&chroma&&Math.abs(dif)===2&&bp.length&&!bp.some(x=>x[2]==='A')){
       bp=bp.filter(x=>x[0]<14).map(([s0,l,r])=>[s0,Math.min(l,14-s0),r]);
       bp.push([14,2,'A',m+dif/2]);
     }
@@ -1829,9 +1834,9 @@ function deriveSong(a,sections,extra){
   sections.forEach((s,si)=>{
     const st=starts[si]*16, end=st+s.bars*16, mv=s.plan?(s.plan.moves||[]):null;
     // Transition effects.
-    if(si>0&&['verse','chorus','bridge','outro','post'].includes(s.type)&&!(mv&&mv.includes('drop_first_bar'))) fx(st,s.type==='post'?'crash':'crash',32);
-    if(s.type==='chorus'&&si>0) fx(st-16,'riser',16);
-    if(s.type==='bridge') fx(st,'down',16);
+    if(!faithfulPlan(a)&&si>0&&['verse','chorus','bridge','outro','post'].includes(s.type)&&!(mv&&mv.includes('drop_first_bar'))) fx(st,s.type==='post'?'crash':'crash',32);
+    if(!faithfulPlan(a)&&s.type==='chorus'&&si>0) fx(st-16,'riser',16);
+    if(!faithfulPlan(a)&&s.type==='bridge') fx(st,'down',16);
     if(mv){
       if(mv.includes('filter_sweep')) ev.fx[st].push(['sweep',s.bars*16]);
       if(mv.includes('drop_first_bar')){clear(st,st+16,['drums','bass','perc'],false);fx(st+16,'crash',32);}
@@ -1852,13 +1857,14 @@ const secName=s=>(s.plan&&s.plan.label)||SECTIONS[s.type].name;
 function variantPlan(a,s,blk,blocks,extra,o){
   const P=s.plan, last=blk===blocks-1, dots='................', mv=P.moves||[];
   const v={...a,double:false,seedNotes:a.melody.notes,energy:o.energy,planned:true};
+  if(faithfulPlan(a)){v.harmony=false;v.counter=false;}
   const pp=extra.planProg&&extra.planProg[P.harmony];
   if(pp&&pp.length){const nb=pp.length/4;v.prog=pp.slice((blk%nb)*4,(blk%nb)*4+4);}
   else { const r=SECTIONS[s.type].r; if(r.prog==='verse'&&extra.vProg) v.prog=extra.vProg[blk%2]; else if(r.prog==='pre'&&extra.preProg) v.prog=extra.preProg; else if(r.prog==='alt'&&extra.bridge) v.prog=extra.bridge; }
   const g=extra.grooves&&extra.grooves[P.groove];
   const lanes={...(g?g.lanes:a.drums.lanes)};
   v.drums={...a.drums,lanes,extra:g?[]:(a.drums.extra||[]),drop:g?[]:(a.drums.drop||[]),fill:false,build:false};
-  if(g){v.bass={...a.bass,pat:g.bass.map(x=>x.slice()),approach:true};v.chords={...a.chords,pat:g.chords.map(x=>x.slice()),push:false};}
+  if(g){v.bass={...a.bass,pat:g.bass.map(x=>x.slice()),approach:!faithfulPlan(a)};v.chords={...a.chords,pat:g.chords.map(x=>x.slice()),push:false};}
   if(mv.includes('half_time')){
     const sn=(lanes.s||'').includes('x')?'s':'c';
     lanes.k=(lanes.k||'').includes('x')?'x.........x.....':dots; lanes.s=dots; lanes.c=dots; lanes[sn]='........x.......'; lanes.o=dots;
@@ -1870,7 +1876,8 @@ function variantPlan(a,s,blk,blocks,extra,o){
   const mk=P.melody, pm=extra.planMel&&extra.planMel[mk];
   let notes=null;
   if(mk&&mk!=='none'){
-    if(pm&&pm.length){const span=Math.max(64,Math.ceil((Math.max(...pm.map(n=>n.step+1)))/64)*64), nb=span/64, b0=(blk%nb)*64;notes=pm.filter(n=>n.step>=b0&&n.step<b0+64).map(n=>({...n,step:n.step-b0}));}
+    if(faithfulPlan(a)&&Array.isArray(pm)){const b0=blk*64;notes=pm.filter(n=>n.step>=b0&&n.step<b0+64).map(n=>({...n,step:n.step-b0}));}
+    else if(pm&&pm.length){const span=Math.max(64,Math.ceil((Math.max(...pm.map(n=>n.step+1)))/64)*64), nb=span/64, b0=(blk%nb)*64;notes=pm.filter(n=>n.step>=b0&&n.step<b0+64).map(n=>({...n,step:n.step-b0}));}
     else if(mk==='chorus') notes=a.melody.notes;
     else if(mk==='verse'&&extra.verse) notes=(Array.isArray(extra.verse[0])?extra.verse:[extra.verse])[blk%2]||[];
     else if(mk==='pre'&&extra.pre) notes=extra.pre;
@@ -1893,31 +1900,31 @@ function variantPlan(a,s,blk,blocks,extra,o){
 // Convert model shorthand into engine data.
 const QUAL={'':null,m:[0,3,7],maj:[0,4,7],M:[0,4,7],maj7:[0,4,7,11],M7:[0,4,7,11],m7:[0,3,7,10],'7':[0,4,7,10],'9':[0,4,7,10,14],sus4:[0,5,7],sus2:[0,2,7],'7sus4':[0,5,7,10],dim:[0,3,6],dim7:[0,3,6,9],m7b5:[0,3,6,10],add9:[0,4,7,14],madd9:[0,3,7,14],m9:[0,3,7,10,14],maj9:[0,4,7,11,14],'6':[0,4,7,9],m6:[0,3,7,9],aug:[0,4,8]};
 const QNAME={m:'m',maj:'',M:'',maj7:'maj7',M7:'maj7',m7:'m7','7':'7','9':'9',sus4:'sus4',sus2:'sus2','7sus4':'7sus4',dim:'dim',dim7:'dim7',m7b5:'m7b5',add9:'add9',madd9:'madd9',m9:'m9',maj9:'maj9','6':'6',m6:'m6',aug:'aug'};
-function parseChordTok(tok,mode){
+function parseChordTok(tok,mode,literal=false){
   // Slash degrees specify a bass pitch in the current key, independently of chord quality.
   const slash=String(tok).trim().match(/^([^/]+)\/([b#♭♯]?)([1-7])$/);
   if(slash){
-    const chord=parseChordTok(slash[1],mode), degree=+slash[3]-1;
+    const chord=parseChordTok(slash[1],mode,literal), degree=+slash[3]-1;
     let acc=/[b♭]/.test(slash[2])?-1:/[#♯]/.test(slash[2])?1:0;
-    if(mode==='minor'&&acc===-1&&[2,5,6].includes(degree)) acc=0;
+    if(!literal&&mode==='minor'&&acc===-1&&[2,5,6].includes(degree)) acc=0;
     return {...chord,bassRel:SCALES[mode][degree]+acc};
   }
   const m=String(tok).trim().match(/^([b#♭♯]?)([1-7])(.*)$/); if(!m) return {deg:0,sev:false};
   let acc=/[b♭]/.test(m[1])?-1:/[#♯]/.test(m[1])?1:0; const deg=+m[2]-1, q=m[3].trim(), sc=SCALES[mode];
-  if(mode==='minor'&&acc===-1&&[2,5,6].includes(deg)) acc=0;   // Minor degrees 3/6/7 are already lowered; interpret b7 as VII in minor.
+  if(!literal&&mode==='minor'&&acc===-1&&[2,5,6].includes(deg)) acc=0;   // Minor degrees 3/6/7 are already lowered; interpret b7 as VII in minor.
   if(!(q in QUAL)) return {deg,sev:false};
   const iv=QUAL[q];
   const dia=[0,2,4,6].map(k=>{const d=deg+k;return sc[d%7]+12*Math.floor(d/7)-sc[deg];});
-  if(!acc){
+  if(!literal&&!acc){
     if(!iv) return {deg,sev:false};
     if(iv.length===3&&iv[1]===dia[1]&&iv[2]===dia[2]) return {deg,sev:false};
     if(iv.length===4&&iv.every((x,i)=>x===dia[i])) return {deg,sev:true};
   }
-  const ints=iv||(acc?[0,4,7]:dia.slice(0,3)), root=sc[deg]+acc;
+  const ints=iv||(!literal&&acc?[0,4,7]:dia.slice(0,3)), root=sc[deg]+acc;
   const minorish=ints[1]===3, rn=(acc<0?'♭':acc>0?'♯':'')+(minorish?ROMAN[deg].toLowerCase():ROMAN[deg]);
-  return {deg,sev:ints.length>=4,chr:ints.map(x=>root+x),rn,fl:acc<0?1:0,exact:1,q:iv?QNAME[q]??'':(minorish?'m':'')};
+  return {deg,sev:ints.length>=4,chr:ints.map(x=>root+x),rn,fl:acc<0?1:0,exact:1,...((iv||!literal)?{q:iv?QNAME[q]??'':(minorish?'m':'')}:{})};
 }
-function parseNotes(str,maxStep){
+function parseNotes(str,maxStep,literal=false){
   const out=[];
   for(const t of String(str||'').trim().split(/[\s,]+/)){
     // Accept accidentals before or after a degree, such as 4# and #4, to preserve model-written notes.
@@ -1927,11 +1934,12 @@ function parseNotes(str,maxStep){
     out.push({step,len,deg,...(ac?{acc:/[#♯]/.test(ac)?1:-1}:{})});
   }
   out.sort((x,y)=>x.step-y.step);
+  if(literal) return out;
   const ns=out.filter((n,i)=>i===0||n.step!==out[i-1].step);
   ns.forEach((n,i)=>{const nx=ns[i+1];const lim=nx?nx.step:maxStep;if(n.step+n.len>lim)n.len=Math.max(1,lim-n.step);});
   return ns;
 }
-function parsePat(str,withRole){
+function parsePat(str,withRole,literal=false){
   const out=[];
   for(const t of String(str||'').trim().split(/[\s,]+/)){
     const m=t.match(withRole?/^(\d+):(\d+):(R|5|O|3|b7|6)$/i:/^(\d+):(\d+)$/); if(!m) continue;
@@ -1939,16 +1947,18 @@ function parsePat(str,withRole){
     out.push(withRole?[st,l,m[3].toUpperCase()]:[st,l]);
   }
   out.sort((x,y)=>x[0]-y[0]);
+  if(literal) return out;
   const o2=out.filter((h,i)=>i===0||h[0]!==out[i-1][0]);
   o2.forEach((h,i)=>{const nx=o2[i+1];if(nx&&h[0]+h[1]>nx[0])h[1]=Math.max(1,nx[0]-h[0]);});
   return o2;
 }
 const SEC_TYPES=['intro','verse','pre','chorus','post','bridge','outro'];
 const MOVE_NAME={fill:'段尾过门',stop:'最后一拍全停',full_stop:'最后两拍全停',build:'军鼓渐密',drop_first_bar:'第一小节不进鼓',half_time:'半速鼓',double_octave:'旋律叠八度',harmony_vocal:'三度和声',counter_line:'对位旋律',filter_sweep:'滤波扫频',key_up:'升调'};
-function fromSongPlan(p,prev,locked){
+function fromSongPlan(p,prev,locked,{executionVersion=2}={}){
+  const literal=executionVersion>=2;
   const styleId=STYLES[p.style]?p.style:scoreStyle(String(p.title||'')+state.mood);
   const st=STYLES[styleId];
-  const a={mood:state.mood,styleId,swing:st.swing,sound:st.sound,verb:st.verb,source:'llm',planned:true};
+  const a={mood:state.mood,styleId,swing:st.swing,sound:st.sound,verb:st.verb,source:'llm',planned:true,executionVersion};
   const keyIdx=NOTE_NAMES.indexOf(String(p.key||'').replace('♯','#').replace('♭','b').replace(/^([a-g])/,m=>m.toUpperCase()));
   const alias={'Db':1,'D#':3,'Gb':6,'G#':8,'A#':10};
   a.root=keyIdx>=0?keyIdx:(alias[p.key]??pick(st.keys));
@@ -1959,7 +1969,7 @@ function fromSongPlan(p,prev,locked){
   const planProg={};
   for(const [k,arr] of Object.entries(p.harmony||{})){
     if(!Array.isArray(arr)||!arr.length) continue;
-    let pr=arr.slice(0,8).map(t=>parseChordTok(t,a.mode));
+    let pr=arr.slice(0,8).map(t=>parseChordTok(t,a.mode,literal));
     while(pr.length%4) pr.push(pr[pr.length-1]);
     planProg[k]=pr;
   }
@@ -1968,8 +1978,8 @@ function fromSongPlan(p,prev,locked){
   for(const [k,g] of Object.entries(p.grooves||{})){
     const dr=(g&&g.drums)||{};
     const lanes={k:cleanLane(dr.kick),s:cleanLane(dr.snare),c:cleanLane(dr.clap),h:cleanLane(dr.hat),o:cleanLane(dr.openhat)};
-    let bass=parsePat(g&&g.bass,true); if(!bass.length) bass=[[0,16,'R']];
-    let ch=parsePat(g&&g.chords,false); if(!ch.length) ch=[[0,16]];
+    let bass=parsePat(g&&g.bass,true,literal); if(!literal&&!bass.length) bass=[[0,16,'R']];
+    let ch=parsePat(g&&g.chords,false,literal); if(!literal&&!ch.length) ch=[[0,16]];
     grooves[k]={lanes,bass,chords:ch};
   }
   // Sections.
@@ -1980,7 +1990,7 @@ function fromSongPlan(p,prev,locked){
     if(x&&x.bars!=null&&+x.bars!==bars) barNotes.push(`${SECTIONS[type].name}写的是 ${x.bars} 小节，目前按 ${bars} 小节演奏`);
     const play=(Array.isArray(x.play)?x.play:['drums','bass','chords','melody']).filter(L=>LAYERS.includes(L));
     return {id:++secId,type,bars,plan:{harmony:planProg[x.harmony]?x.harmony:(planProg[type]?type:Object.keys(planProg)[0]),groove:grooves[x.groove]?x.groove:(Object.keys(grooves)[0]||null),
-      play,melody:String(x.melody||'none'),energy:Math.max(0,Math.min(1,+x.energy||.6)),moves:(Array.isArray(x.moves)?x.moves:[]).filter(m=>MOVE_NAME[m]),idea:String(x.idea||'').slice(0,120)}};
+      play,melody:String(x.melody||'none'),energy:Math.max(0,Math.min(1,literal?(x.energy??.6):(+x.energy||.6))),moves:(Array.isArray(x.moves)?x.moves:[]).filter(m=>MOVE_NAME[m]),idea:String(x.idea||'').slice(0,120)}};
   });
   // Preserve the producer's form and disclose duration mismatches instead of composing extra sections.
   const extNotes=barNotes.length?[`网页核对：${barNotes.join('；')}。`]:[];
@@ -1990,8 +2000,8 @@ function fromSongPlan(p,prev,locked){
   const planMel={}, maxBars={};
   secs.forEach(x=>{const k=x.plan.melody;maxBars[k]=Math.max(maxBars[k]||0,x.bars);});
   for(const [k,str] of Object.entries(p.melodies||{})){
-    const ns=parseNotes(str,Math.max(4,maxBars[k]||8)*16);
-    if(ns.length>=3) planMel[k]=ns;
+    const ns=parseNotes(str,Math.max(4,maxBars[k]||8)*16,literal);
+    if(literal||ns.length>=3) planMel[k]=ns;
   }
   // Use the chorus as the four-bar seed.
   const cs=secs.find(x=>x.type==='chorus'&&planMel[x.plan.melody])||secs.find(x=>x.type==='chorus')||secs[0];
@@ -1999,12 +2009,12 @@ function fromSongPlan(p,prev,locked){
   a.prog=cp.slice(0,4);
   const cg=grooves[cs.plan.groove];
   a.drums=cg?{id:'llm',name:'大模型律动 '+cs.plan.groove,tip:'这一组鼓点由大模型为这首歌编写。',lanes:{...cg.lanes},fill:false,extra:[],drop:[]}:newDrums(st);
-  a.bass=cg?{id:'llm',name:'大模型贝斯',tip:'贝斯节奏由大模型编写，音高自动跟随和弦。',pat:cg.bass.map(x=>x.slice()),approach:true}:newBass(st);
+  a.bass=cg?{id:'llm',name:'大模型贝斯',tip:'贝斯节奏由大模型编写，音高自动跟随和弦。',pat:cg.bass.map(x=>x.slice()),approach:!literal}:newBass(st);
   a.chords=cg?{id:'llm',name:'大模型和弦',tip:'和弦节奏由大模型编写。',pat:cg.chords.map(x=>x.slice()),push:false}:newChordPart(st);
-  const cm=planMel[cs.plan.melody];
+  const cm=planMel[cs.plan.melody]||(literal?[]:undefined);
   if(cm){
     let n4=cm.filter(n=>n.step<64).map(n=>({...n}));
-    n4=fixClash(n4,a,a.prog.map(()=>({deg:-9})));
+    if(!literal) n4=fixClash(n4,a,a.prog.map(()=>({deg:-9})));
     a.melody={id:'llm',form:'LLM',src:'大模型',name:'副歌旋律',contour:'arch',tip:'这段旋律是大模型为这首歌写的。',notes:n4};
     a.melody.score=scoreMelody(n4,a);
     const eng=bestMelody(st,a,null,{},2); a.melodyAlt=eng[0];
@@ -2024,7 +2034,7 @@ function fromSongPlan(p,prev,locked){
   const bs=firstOf('bridge'); if(bs&&planProg[bs.plan.harmony]) fx.bridge=planProg[bs.plan.harmony].slice(0,4);
   fx.chorusB=cp.length>4?cp.slice(4,8):null;
   // Resolve strong-beat melody clashes against each section's harmony.
-  secs.forEach(x=>{const k=x.plan.melody, pr=planProg[x.plan.harmony]; if(!planMel[k]||!pr||planMel[k]._fixed) return;
+  if(!literal) secs.forEach(x=>{const k=x.plan.melody, pr=planProg[x.plan.harmony]; if(!planMel[k]||!pr||planMel[k]._fixed) return;
     const ns=planMel[k], out=[]; const nb=Math.ceil((Math.max(...ns.map(n=>n.step))+1)/64);
     for(let b=0;b<nb;b++){const blk=ns.filter(n=>n.step>=b*64&&n.step<b*64+64).map(n=>({...n,step:n.step-b*64}));
       const pb=pr.slice((b%(pr.length/4))*4,(b%(pr.length/4))*4+4);
@@ -2692,7 +2702,7 @@ async function exportWav(stems){
 /* ============ Interface ============ */
 const $=id=>document.getElementById(id);
 const rack=$('rack');
-const state={arr:null,D:null,S:null,mode:'loop',song:defaultSong(),extra:null,sel:3,mood:'',locked:{},muted:{},vol:{drums:.9,bass:.85,chords:.7,melody:.8,arp:.6,pad:.6,perc:.7,fx:.7},more:true,feel:.7,keyUp:true,ctl:{key:'auto',bright:null,energy:.5,mel:.45,harm:.6,swing:null},backend:null,busy:false};
+const state={project:null,projectInput:null,arr:null,D:null,S:null,mode:'loop',song:defaultSong(),extra:null,sel:3,mood:'',locked:{},muted:{},vol:{drums:.9,bass:.85,chords:.7,melody:.8,arp:.6,pad:.6,perc:.7,fx:.7},more:true,feel:.7,keyUp:true,ctl:{key:'auto',bright:null,energy:.5,mel:.45,harm:.6,swing:null},backend:null,busy:false};
 const ICON={
   dice:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5"/><circle cx="5.5" cy="5.5" r="1" fill="currentColor"/><circle cx="10.5" cy="10.5" r="1" fill="currentColor"/><circle cx="10.5" cy="5.5" r="1" fill="currentColor"/><circle cx="5.5" cy="10.5" r="1" fill="currentColor"/></svg>',
   lock:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>',
@@ -2989,7 +2999,15 @@ function harmKey(m){
 }
 function renderSong(){
   const a=state.arr, song=state.song;
-  state.S=deriveSong(a,song,state.extra);
+  // The legacy editor remains an input adapter until command-based editing lands.
+  // Selection-only redraws reuse materialized events instead of recompiling music.
+  const input=JSON.stringify({arr:a,song,extra:state.extra,keyUp:state.keyUp,ctl:state.ctl});
+  if(!state.project||input!==state.projectInput){
+    const performance=deriveSong(a,song,state.extra);
+    state.project=captureProject({arrangement:a,sections:song,performance,mixer:state,previous:state.project});
+    state.projectInput=input;
+  }
+  state.S=projectPerformance(state.project);
   renderHarmony(); renderConcept();
   if(state.sel>=song.length) state.sel=song.length-1;
   const barSec=240/a.bpm;
@@ -3365,6 +3383,6 @@ state.mood=$('mood').value;
 state.arr=compose(state.mood,scoreStyle(state.mood),null,{});
 state.verStarOnly=false;
 render(); setStatus(); detectBackend(); updUndo(); renderVersions();
-window.__shiyin={state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
+window.__shiyin={captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
 })();
 </script>

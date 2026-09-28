@@ -3,6 +3,7 @@
 // Requires Playwright and Chromium: npm i -D playwright && npx playwright install chromium
 const { chromium } = await import('playwright').catch(() => import(process.env.PLAYWRIGHT_MJS || 'playwright'));
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 const REPO = process.argv[2] || new URL('..', import.meta.url).pathname;
 const PORT = 5199;
 const srv = spawn('node', ['server.mjs'], { cwd: REPO, env: { ...process.env, PROVIDER: 'mock', ARRANGE_PASSES: '1', PORT: String(PORT), INVITE_CODES: 'TEST-CODE-1', HOST: '127.0.0.1' } });
@@ -120,6 +121,82 @@ try {
     return {count:parsed.song.length,review:parsed.arr.review};
   });
   ok('Short plans retain the producer form and disclose their duration', shortPlan.count===2 && shortPlan.review.some(x=>x.includes('0:16')&&x.includes('保留制作人原有段落')), JSON.stringify(shortPlan));
+  const fidelity = await page.evaluate(() => {
+    const api=__shiyin;
+    const make=(melody='',bass='',chords='',energy=0)=>({title:'Contract fixture',style:'jazz',key:'C',mode:'minor',bpm:120,
+      harmony:{A:['1m7/b3','b6maj7','5','1m']},
+      grooves:{A:{drums:{kick:'x...............',snare:'................',clap:'................',hat:'xxxxxxxxxxxxxxxx',openhat:'................'},bass,chords}},
+      melodies:{A:melody},sections:['verse','chorus'].map(type=>({type,bars:8,harmony:'A',groove:'A',melody:'A',energy,play:['drums','bass','chords','melody'],moves:[]}))});
+    const run=p=>{const x=api.fromSongPlan(p,null,{});return {...x,d:api.deriveSong(x.arr,x.song,x.extra)};};
+    const empty=run(make());
+    const sparse=run(make('0:8:#4 4:2:2'));
+    const overlap=run(make('0:8:1 0:4:3 4:8:5'));
+    const groove=run(make('', '0:16:R', '0:8 4:8', 1));
+    const legacy=api.fromSongPlan(make(),null,{}, {executionVersion:1});
+    const before=JSON.stringify(sparse.extra);
+    const again=api.deriveSong(sparse.arr,sparse.song,sparse.extra);
+    return {
+      version:empty.arr.executionVersion,energy:empty.song[0].plan.energy,
+      silence:['bass','chords','melody','fx'].every(L=>empty.d.ev[L].every(x=>!x.length)),
+      sparse:sparse.d.roll.melody.map(n=>[n.step,n.len,n.midi%12]),
+      overlap:overlap.d.roll.melody.slice(0,3).map(n=>[n.step,n.len,n.midi%12]),
+      drums:empty.d.roll.drums.filter(n=>n.lane===3).length,
+      bass:groove.d.roll.bass.map(n=>[n.step,n.len]),
+      bassPc:groove.d.roll.bass[0].midi%12,
+      chordRoot:api.chordInfo(groove.arr,1).rootPc,
+      chordHits:groove.d.ev.chords.slice(0,16).filter(x=>x.length).length,
+      stable:JSON.stringify(again.ev)===JSON.stringify(sparse.d.ev)&&before===JSON.stringify(sparse.extra),
+      legacy:legacy.arr.executionVersion===1&&legacy.extra.grooves.A.bass.length===1&&legacy.song[0].plan.energy===.6
+    };
+  });
+  ok('New plans carry an execution version and preserve zero energy', fidelity.version===2&&fidelity.energy===0, JSON.stringify(fidelity));
+  ok('Explicit rests stay silent, including unrequested transitions', fidelity.silence);
+  ok('Sparse chromatic melodies retain notes and eight-bar rests', JSON.stringify(fidelity.sparse)==='[[0,8,6],[4,2,2],[128,8,6],[132,2,2]]', JSON.stringify(fidelity.sparse));
+  ok('Simultaneous and overlapping melody events retain their lengths', JSON.stringify(fidelity.overlap)==='[[0,8,0],[0,4,3],[4,8,7]]', JSON.stringify(fidelity.overlap));
+  ok('Energy does not rewrite explicit drum and bass patterns', fidelity.drums===256&&fidelity.bass.length===16&&fidelity.bass.every(([step,len])=>step%16===0&&len===16));
+  ok('Minor accidentals remain literal in chords and slash bass', fidelity.bassPc===2&&fidelity.chordRoot===7, JSON.stringify({bass:fidelity.bassPc,root:fidelity.chordRoot}));
+  ok('Explicit overlapping chord hits remain present', fidelity.chordHits===2);
+  ok('Repeated derivation preserves events and shared source groups', fidelity.stable);
+  ok('Version-one compilation remains available for legacy replay', fidelity.legacy);
+  const projectBridge = await page.evaluate(async () => {
+    const api=__shiyin, state=api.state;
+    api.render();
+    const original=api.deriveSong(state.arr,state.song,state.extra);
+    const project=structuredClone(state.project);
+    const restored=api.projectPerformance(JSON.parse(JSON.stringify(project)));
+    const events=JSON.stringify(restored.ev)===JSON.stringify(original.ev);
+    const live=JSON.stringify(restored.ev)===JSON.stringify(state.S.ev);
+    const a=api.midiFile(state.arr,api.LAYERS,original,'PROJECT-TEST');
+    const b=api.midiFile(state.arr,api.LAYERS,restored,'PROJECT-TEST');
+    const midi=a.length===b.length&&a.every((value,i)=>value===b[i]);
+    api.render();
+    const stable=JSON.stringify(project)===JSON.stringify(state.project);
+    const module=await fetch('/core/project.mjs');
+    const unknown=await fetch('/core/unknown.mjs');
+    return {events,live,midi,stable,module:module.ok&&module.headers.get('content-type').includes('javascript'),unknown:unknown.status===404};
+  });
+  ok('ProjectV2 round-trips live song events without altering MIDI export', projectBridge.events&&projectBridge.live&&projectBridge.midi, JSON.stringify(projectBridge));
+  ok('Redrawing keeps project identities and revision stable', projectBridge.stable);
+  ok('Only the explicitly allowed project module is served', projectBridge.module&&projectBridge.unknown);
+  if (process.env.ARRO_REPLAY_PLANS) {
+    const archive=JSON.parse(await readFile(process.env.ARRO_REPLAY_PLANS,'utf8'));
+    const plans=archive.runs.filter(run=>run.plan).map(run=>({id:run.id,plan:run.plan}));
+    const replay=await page.evaluate(plans=>{
+      const api=__shiyin, failures=[];let passed=0;
+      for(const {id,plan} of plans) for(const executionVersion of [1,2]) {
+        try {
+          const x=api.fromSongPlan(plan,null,{}, {executionVersion});
+          const performance=api.deriveSong(x.arr,x.song,x.extra);
+          const project=api.captureProject({arrangement:x.arr,sections:x.song,performance});
+          const restored=api.projectPerformance(JSON.parse(JSON.stringify(project)));
+          if(JSON.stringify(restored.ev)!==JSON.stringify(performance.ev)) throw new Error('Event mismatch');
+          passed++;
+        } catch(e) { failures.push({id,executionVersion,error:e.message}); }
+      }
+      return {passed,failures};
+    },plans);
+    ok('Archived plans survive both execution versions and project round-trip', plans.length>0&&replay.passed===plans.length*2&&!replay.failures.length, JSON.stringify(replay));
+  }
   ok('No browser errors', errs.length === 0, errs.join(' | ').slice(0, 300));
 } catch (e) { ok('Test execution error', false, String(e.message).slice(0, 300)); }
 await browser.close(); srv.kill();
