@@ -1,7 +1,7 @@
 # ARRO 1.1: editable, persistent, faithful arrangements
 
 Research date: 2026-09-28. Application baseline: `bca6a32`.
-Status: approved; Stage A implementation is in progress on `feat/arro-1.1`. No new paid experiments have started.
+Status: release candidate on `feat/arro-1.1`; core implementation and lightweight editing are complete. Validation and deployment are in progress. See `ARRO-1.1-progress.md` for the implemented scope and release evidence.
 
 ## Outcome
 

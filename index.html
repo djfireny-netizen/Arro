@@ -320,7 +320,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
   <header class="top">
     <div class="brand">
       <img class="wordmark" src="/brand/arro-wordmark-v4.svg" alt="ARRO" width="102" height="32">
-      <span>编曲台 · 1.0</span><em class="aigc" title="页面上的编曲和导出的文件由人工智能生成">AI 生成</em>
+      <span>编曲台 · 1.1</span><em class="aigc" title="页面上的编曲和导出的文件由人工智能生成">AI 生成</em>
     </div>
     <div class="top-r">
       <button class="ib" id="undoBtn" type="button" title="撤销（⌘Z / Ctrl+Z）" aria-label="撤销" disabled>↶</button>
@@ -391,12 +391,12 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
   <section class="knobs" aria-label="调整方向">
     <div class="knobs-h">
       <h2>调整方向</h2>
-      <p class="sub">拖一下马上能听到。明暗、能量、和声、律动、呼吸感直接改当前这首；旋律复杂度会重写旋律。</p>
+      <p class="sub" id="directionHelp">拖一下马上能听到。明暗、能量、和声、律动、呼吸感直接改当前这首；旋律复杂度会重写旋律。</p>
       <button class="ib" type="button" id="ctlReset">全部恢复默认</button>
     </div>
     <div class="kgrid">
       <label class="kn" for="keyPick"><span class="kt"><b>调</b><em id="keyV">自动</em></span>
-        <select id="keyPick"></select><span class="ke"><i>换调不换编曲，按唱的人的音域选</i></span></label>
+        <select id="keyPick"></select><span class="ke"><i>选择适合演唱的调</i></span></label>
       <label class="kn" for="bright"><span class="kt"><b>明暗</b><em id="brightV">—</em></span>
         <input type="range" id="bright" min="0" max="1" step="0.01" value="0.7"><span class="ke"><i>暗</i><i>亮</i></span></label>
       <label class="kn" for="energy"><span class="kt"><b>能量</b><em id="energyV">适中</em></span>
@@ -458,6 +458,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
       <label>段落 <select id="noteSection" aria-label="编辑段落"></select></label>
       <label>轨道 <select id="noteTrack" aria-label="编辑轨道"></select></label>
       <button class="btn" id="noteListen" type="button">从这段试听</button>
+      <label><input id="noteLoop" type="checkbox">循环本段</label>
       <span id="noteEditState" role="status"></span>
     </div>
     <form id="revisionForm" class="note-tools">
@@ -469,6 +470,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
     <div id="revisionCandidate" hidden>
       <p id="revisionExplanation" class="sub"></p>
       <div class="note-tools">
+        <label><input id="revisionSolo" type="checkbox">只听目标轨道</label>
         <button class="btn" id="revisionOriginal" type="button">试听 A · 原版</button>
         <button class="btn" id="revisionNew" type="button">试听 B · 新版</button>
         <button class="btn" id="revisionStop" type="button">停止试听</button>
@@ -485,9 +487,21 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
       <label>位置（16 分步）<input id="noteStart" type="number" min="1" step="1" required></label>
       <label>时长（16 分步）<input id="noteLength" type="number" min="1" step="1" required></label>
       <label>力度（1–127）<input id="noteVelocity" type="number" min="1" max="127" step="1" required></label>
+      <button class="btn" id="noteAdd" type="button">添加音符</button>
       <button class="btn" id="noteApply" type="submit">应用修改</button>
       <button class="btn" id="noteDelete" type="button">删除音符</button>
     </form>
+    <div id="drumEditor" hidden>
+      <p class="sub">点击鼓点格子添加或删除；也可填写位置和力度精确编辑。</p>
+      <div class="note-scroll"><div id="drumGrid" style="display:grid;gap:2px;width:max-content" role="group" aria-label="鼓点编辑"></div></div>
+      <form id="drumForm" class="note-fields">
+        <label>鼓件 <select id="drumLane"></select></label>
+        <label>位置（16 分步）<input id="drumStep" type="number" min="1" step="1" value="1" required></label>
+        <label>力度（1–127）<input id="drumVelocity" type="number" min="1" max="127" step="1" value="90" required></label>
+        <button class="btn" type="submit">设置鼓点</button>
+        <button class="btn" id="drumDelete" type="button">删除鼓点</button>
+      </form>
+    </div>
     <p class="sub">修改作用于整首歌曲中选定的片段，可撤销。上方的 4 小节种子循环保留原来的编曲素材。</p>
   </section>
 
@@ -496,6 +510,12 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
       <div><h2>版本记录</h2><p class="sub" id="verCount"></p></div>
       <div class="seg" role="group" aria-label="显示哪些版本"><button type="button" id="verAll" aria-pressed="true">全部</button><button type="button" id="verStar" aria-pressed="false">只看收藏</button></div>
     </div>
+    <details><summary>找回最近的生成任务</summary>
+      <p class="sub">保留最近 24 小时内的 6 个任务。只读取已有结果，不会重新调用模型；找回后作为独立版本保存。</p>
+      <div class="note-tools"><label>任务 <select id="recoverySelect" aria-label="找回任务"></select></label><button class="btn" id="recoverJob" type="button">恢复为独立版本</button></div>
+      <p id="recoveryStatus" class="sub" role="status"></p>
+    </details>
+    <p id="versionSaveState" class="sub" role="status"></p><button class="btn" id="retryVersions" type="button" hidden>重试保存版本记录</button>
     <div class="ver-list" id="verList"></div>
   </section>
 
@@ -2372,7 +2392,12 @@ function drum(L,t,v,out,acoustic){
 let comparisonSource=null, comparisonEpoch=0;
 function stopComparison(){comparisonEpoch++;if(comparisonSource){comparisonSource.stop();comparisonSource.disconnect();comparisonSource=null;}}
 const tp={playing:false,step:0,next:0,timer:null,q:[],cur:-1};
-function source(){return state.mode==='song'?{ev:state.S.ev,len:state.S.bars*16}:{ev:state.D.ev,len:64};}
+let sectionLoop=null;
+function source(){
+  const section=state.mode==='song'&&state.project?.sections.find(s=>s.id===sectionLoop);
+  if(section)return {ev:state.S.ev,from:section.startTick/120,len:(section.startTick+section.durationTicks)/120};
+  return state.mode==='song'?{ev:state.S.ev,from:0,len:state.S.bars*16}:{ev:state.D.ev,from:0,len:64};
+}
 function pump(t){
   const d=(PUMP[state.arr.styleId]||0)*state.feel; if(d<.02) return;
   const beat=60/state.arr.bpm;
@@ -2416,12 +2441,12 @@ function swingOff(step,sd){
   return (step%2===1?a.swing*sd*.5:0)+(st.swing8&&step%4===2?st.swing8*sd*.66:0);
 }
 function scheduler(){
-  const c=A.ctx, sd=60/state.arr.bpm/4, {ev,len}=source();
-  if(tp.step>=len) tp.step=0;
+  const c=A.ctx, sd=60/state.arr.bpm/4, {ev,len,from}=source();
+  if(tp.step>=len||tp.step<from) tp.step=from;
   while(tp.next<c.currentTime+.12){
     let t=tp.next+swingOff(tp.step,sd);
     playStep(ev,tp.step,t,sd); tp.q.push([tp.step,t]);
-    tp.next+=sd; tp.step=(tp.step+1)%len;
+    tp.next+=sd; tp.step=tp.step+1>=len?from:tp.step+1;
   }
 }
 function start(from=0){
@@ -2475,7 +2500,8 @@ function frame(){
   if(cur!==tp.cur&&cur>=0){tp.cur=cur;showPos(cur);}
   requestAnimationFrame(frame);
 }
-function setMode(m,from){
+function setMode(m,from,loop=null){
+  sectionLoop=loop;
   const was=tp.playing; if(was) stop();
   state.mode=m;
   if(m==='song') setView(from!==undefined?Math.floor(from/64)*64:state.S.starts[state.sel]*16); else {state.viewDrawn=m;drawAll();updateRackCap();}
@@ -3081,6 +3107,7 @@ function renderSong(){
     state.projectInput=input;
   }
   state.S=projectPerformance(state.project);
+  $('secEn').hidden=a.executionVersion===2;$('secEn').previousElementSibling.hidden=a.executionVersion===2;
   scheduleProjectSave();
   renderHarmony(); renderConcept();
   if(state.sel>=song.length) state.sel=song.length-1;
@@ -3137,15 +3164,16 @@ function editSong(fn){const before=snap();commit();try{fn(state.song);renderSong
 const noteEditor={track:'melody',eventId:null,drag:null,high:84};
 const noteLabel=p=>NOTE_NAMES[p%12]+(Math.floor(p/12)-1);
 const selectedClip=()=>state.project?.tracks.find(t=>t.layer===noteEditor.track)?.clips.find(c=>c.sectionId===state.project.sections[state.sel]?.id);
-for(const layer of ['melody','bass','chords','arp','pad']){const option=document.createElement('option');option.value=layer;option.textContent=META[layer].name;$('noteTrack').appendChild(option);}
+for(const layer of ['melody','bass','chords','arp','pad','drums','perc']){const option=document.createElement('option');option.value=layer;option.textContent=META[layer].name;$('noteTrack').appendChild(option);}
 for(let pitch=0;pitch<128;pitch++){const option=document.createElement('option');option.value=pitch;option.textContent=noteLabel(pitch);$('notePitch').appendChild(option);}
 function selectNote(id){
   noteEditor.eventId=id;
   const clip=selectedClip(), event=clip?.events.find(e=>e.id===id);
   $('noteGrid').querySelectorAll('.note-cell').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.eventId===id)));
-  for(const field of ['notePitch','noteStart','noteLength','noteVelocity','noteApply','noteDelete'])$(field).disabled=!event;
+  for(const field of ['notePitch','noteStart','noteLength','noteVelocity'])$(field).disabled=false;
+  for(const field of ['noteApply','noteDelete'])$(field).disabled=!event;
   $('noteSelection').textContent=event?`${noteLabel(event.pitch)} · 第 ${Math.floor(event.startTick/1920)+1} 小节 · 可用方向键移动，Delete 删除`:'这条轨道在本段没有音符，或尚未选中音符。';
-  if(!event)return;
+  if(!event){$('notePitch').value=60;$('noteStart').value=1;$('noteLength').value=4;$('noteVelocity').value=90;return;}
   $('notePitch').value=event.pitch;$('noteStart').value=event.startTick/120+1;
   $('noteLength').value=event.durationTicks/120;$('noteVelocity').value=Math.max(1,Math.min(127,Math.round(event.velocity*100)));
   $('noteStart').max=clip.durationTicks/120;$('noteLength').max=clip.durationTicks/120;
@@ -3158,6 +3186,9 @@ function renderNoteEditor(){
   menu.value=state.sel;$('noteTrack').value=noteEditor.track;
   const clip=selectedClip(),grid=$('noteGrid');grid.replaceChildren();
   if(!clip)return;
+  const drum=['drums','perc'].includes(noteEditor.track);
+  $('drumEditor').hidden=!drum;$('noteForm').hidden=drum;grid.parentElement.hidden=drum;$('noteSelection').hidden=drum;$('revisionForm').hidden=drum;
+  if(drum){renderDrumEditor(clip);return;}
   const notes=clip.events.filter(e=>e.type==='note'), pitches=notes.map(e=>e.pitch);
   let low=Math.max(0,(pitches.length?Math.min(...pitches):60)-2),high=Math.min(127,(pitches.length?Math.max(...pitches):72)+2);
   while(high-low<17){if(low>0)low--;if(high<127)high++;}
@@ -3191,9 +3222,47 @@ function submitNote(patch,revision=state.project.revision){
 }
 $('noteSection').onchange=e=>{state.sel=Number(e.target.value);noteEditor.eventId=null;renderSong();};
 $('noteTrack').onchange=e=>{noteEditor.track=e.target.value;noteEditor.eventId=null;renderNoteEditor();};
-$('noteListen').onclick=()=>setMode('song',state.S.starts[state.sel]*16);
+$('noteListen').onclick=()=>setMode('song',state.S.starts[state.sel]*16,$('noteLoop').checked?state.project.sections[state.sel].id:null);
+$('noteLoop').onchange=()=>{if(!$('noteLoop').checked)sectionLoop=null;};
 $('noteForm').onsubmit=e=>{e.preventDefault();submitNote({pitch:Number($('notePitch').value),startTick:(Number($('noteStart').value)-1)*120,durationTicks:Number($('noteLength').value)*120,velocity:Number($('noteVelocity').value)/100});};
 $('noteDelete').onclick=()=>submitNote(null);
+function addNote(note){
+  const clip=selectedClip();if(!clip)return;
+  const eventId=clip.id+':user:'+crypto.randomUUID();
+  try{runProjectCommand({type:'add-note',trackId:'track:'+noteEditor.track,clipId:clip.id,eventId,note});selectNote(eventId);}
+  catch{toast('添加未应用：请检查音高、时长和位置是否在本段范围内。');}
+}
+$('noteAdd').onclick=()=>addNote({pitch:Number($('notePitch').value),startTick:(Number($('noteStart').value)-1)*120,durationTicks:Number($('noteLength').value)*120,velocity:Number($('noteVelocity').value)/100});
+$('noteGrid').ondblclick=e=>{
+  if(e.target.closest('.note-cell'))return;
+  const box=$('noteGrid').getBoundingClientRect();
+  addNote({pitch:noteEditor.high-Math.floor((e.clientY-box.top)/18),startTick:Math.floor((e.clientX-box.left)/12)*120,durationTicks:120,velocity:.9});
+};
+const drumLanes={drums:[['k','底鼓'],['s','军鼓'],['c','拍手'],['h','闭镲'],['o','开镲']],perc:[['sh','沙锤'],['tb','手鼓'],['cg','康加'],['cl','响板'],['rm','边击']]};
+function renderDrumEditor(clip){
+  const grid=$('drumGrid'),lanes=drumLanes[noteEditor.track],steps=clip.durationTicks/120,select=$('drumLane'),lane=select.value;
+  select.replaceChildren();for(const [id,name] of lanes){const option=document.createElement('option');option.value=id;option.textContent=name;select.appendChild(option);}
+  if(lanes.some(([id])=>id===lane))select.value=lane;
+  $('drumStep').max=steps;grid.replaceChildren();grid.style.gridTemplateColumns=`52px repeat(${steps},24px)`;
+  for(const [id,name] of lanes){
+    const label=document.createElement('span');label.textContent=name;label.style.fontSize='12px';grid.appendChild(label);
+    for(let step=0;step<steps;step++){
+      const event=clip.events.find(e=>e.lane===id&&e.startTick===step*120),button=document.createElement('button');
+      button.type='button';button.dataset.lane=id;button.dataset.step=step;button.setAttribute('aria-label',`${name}，第 ${step+1} 步`);button.setAttribute('aria-pressed',String(!!event));
+      button.style.cssText=`height:26px;padding:0;border:1px solid var(--line);border-radius:3px;background:${event?'var(--c-drums)':'var(--roll)'};color:var(--ink)`;button.textContent=event?'●':step%16===0?String(step/16+1):'';
+      button.onclick=()=>{$('drumLane').value=id;$('drumStep').value=step+1;setDrum(event?0:Number($('drumVelocity').value)/100);};grid.appendChild(button);
+    }
+  }
+  $('noteEditState').textContent=clip.edited?'已编辑 · 再编曲时保留本片段':`${clip.events.length} 个鼓点`;
+}
+function setDrum(velocity){
+  const clip=selectedClip();if(!clip)return;
+  try{runProjectCommand({type:'set-drum',trackId:'track:'+noteEditor.track,clipId:clip.id,lane:$('drumLane').value,startTick:(Number($('drumStep').value)-1)*120,velocity});}
+  catch{toast('鼓点未应用：请检查位置和力度。');}
+}
+$('drumForm').onsubmit=e=>{e.preventDefault();setDrum(Number($('drumVelocity').value)/100);};
+$('drumDelete').onclick=()=>setDrum(0);
+
 $('noteGrid').onpointerdown=e=>{
   const button=e.target.closest('.note-cell');if(!button||e.button!==0)return;
   selectNote(button.dataset.eventId);
@@ -3218,11 +3287,67 @@ let revisionCandidate=null, revisionPreviewBusy=false;
 const revisionSignature=()=>JSON.stringify([state.project,state.feel]);
 function updateRevisionUI(){
   if(revisionCandidate&&revisionCandidate.signature!==revisionSignature()){
-    stopComparison();revisionCandidate=null;$('revisionStatus').textContent='工程已变化，旧候选已失效。可以基于当前版本重新生成。';
+    stopComparison();record(revisionCandidate.label,'AI 局部候选',JSON.stringify({...revisionCandidate.editor,project:revisionCandidate.next}));revisionCandidate=null;$('revisionStatus').textContent='工程已变化，候选已保存在版本记录中，当前修改保持不变。';
   }
   $('revisionGenerate').disabled=!!state.busy||!state.backend?.ok||!!revisionCandidate;
   $('revisionCandidate').hidden=!revisionCandidate;
   for(const id of ['revisionOriginal','revisionNew'])$(id).disabled=revisionPreviewBusy;
+}
+// Persist only retry identity, never credentials or musical request bodies.
+async function submitAIJob(path,body){
+  const recoveryDocument=projectDocument();
+  const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([path,body])));
+  const key='arro.request.'+[...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('');
+  let saved;
+  try{
+    for(const name of Object.keys(localStorage).filter(k=>k.startsWith('arro.request.'))){
+      try{if(Date.now()-JSON.parse(localStorage.getItem(name)).time>86400000)localStorage.removeItem(name);}catch{localStorage.removeItem(name);}
+    }
+    saved=JSON.parse(localStorage.getItem(key)||'null');
+    if(!saved){saved={requestId:crypto.randomUUID(),time:Date.now()};localStorage.setItem(key,JSON.stringify(saved));}
+  }catch{throw new Error('无法保存生成任务编号，请先下载工程并检查浏览器存储空间');}
+  await projectStore.putRecovery({requestId:saved.requestId,time:saved.time,path,scope:body.scope||null,mood:body.mood||state.arr.mood,document:recoveryDocument});
+  await refreshRecovery();
+  const result=await revisionFetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,requestId:saved.requestId})});
+  saved.job=result.job;localStorage.setItem(key,JSON.stringify(saved));return result;
+}
+async function refreshRecovery(){
+  const records=await projectStore.loadRecovery(),select=$('recoverySelect'),value=select.value;select.replaceChildren();
+  for(const r of records){const option=document.createElement('option');option.value=r.requestId;option.textContent=new Date(r.time).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})+' · '+(r.path==='/api/revise-clip'?'局部修改':'整曲生成 / 打磨');select.appendChild(option);}
+  if(records.some(r=>r.requestId===value))select.value=value;$('recoverJob').disabled=!records.length;
+}
+$('recoverJob').onclick=async()=>{
+  if(state.busy){$('recoveryStatus').textContent='请等待当前生成任务结束后再找回。';return;}
+  $('recoverJob').disabled=true;
+  try{
+    const item=(await projectStore.loadRecovery()).find(r=>r.requestId===$('recoverySelect').value);if(!item)throw new Error('任务恢复信息已过期');
+    const result=await revisionFetch('/api/job?requestId='+encodeURIComponent(item.requestId),{cache:'no-store'});
+    if(result.status==='running'){$('recoveryStatus').textContent='任务仍在制作，请稍后再找回；不会重复生成。';return;}
+    if(result.status!=='done')throw new Error(result.error||'任务未完成');
+    if(state.busy)throw new Error('请等待当前生成任务结束后再找回');
+    const base=parseDocument(JSON.stringify(item.document));
+    if(item.path==='/api/revise-clip'){
+      const next=applyCommand(base.project,{type:'replace-clip',baseRevision:base.project.revision,...item.scope,candidate:result.plan});
+      record('找回局部修改','找回的 AI 结果',JSON.stringify({...base.editor,project:next}));
+    }else{
+      const current=snap();
+      try{
+        restore(JSON.stringify({...base.editor,project:base.project}));
+        if(Array.isArray(result.plan.sections)){const R=fromSongPlan(result.plan,null,{});state.arr=R.arr;state.song=R.song;state.extra=R.extra;state.keepExtra=true;}
+        else{state.arr=fromPlan(result.plan,null,{});newForm();}
+        state.arr.mood=item.mood||'';state.project=null;render(LAYERS);record(item.mood,'找回的 AI 结果');
+      }finally{restore(current);}
+    }
+    await (versionWriter||Promise.resolve());
+    if(pendingVersions.size)throw new Error('结果已在版本记录中，请重试保存版本记录');
+    $('recoveryStatus').textContent='已保存为独立版本；当前作品保持不变。请在下方版本记录中打开。';
+  }catch(error){$('recoveryStatus').textContent='当前作品已保留：'+String(error.message).slice(0,140);}
+  finally{$('recoverJob').disabled=false;}
+};
+function finishAIJob(id){
+  for(const key of Object.keys(localStorage).filter(k=>k.startsWith('arro.request.'))){
+    try{if(JSON.parse(localStorage.getItem(key)).job===id)localStorage.removeItem(key);}catch{}
+  }
 }
 async function revisionFetch(url,options={}){
   const r=await fetch(url,{...options,signal:AbortSignal.timeout(30000)});
@@ -3231,26 +3356,29 @@ async function revisionFetch(url,options={}){
 $('revisionForm').onsubmit=async e=>{
   e.preventDefault();if(state.busy||revisionCandidate||!state.backend?.ok)return;
   const direction=$('revisionDirection').value.trim(),clip=selectedClip();if(!direction||!clip)return;
-  const project=structuredClone(state.project),scope={trackId:'track:'+noteEditor.track,clipId:clip.id};
+  const project=structuredClone(state.project),editor=structuredClone(editorSnapshot()),scope={trackId:'track:'+noteEditor.track,clipId:clip.id};
   const signature=revisionSignature(),label=`${state.sel+1}. ${secName(state.song[state.sel])} · ${META[noteEditor.track].name}`;
   state.busy=true;$('genBtn').disabled=true;updateRevisionUI();renderConcept();
   $('revisionStatus').textContent=`制作人正在修改「${label}」；原版保留中。`;
   const started=Date.now();
   try {
-    const job=await revisionFetch('/api/revise-clip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project,scope,direction})});
+    const job=await submitAIJob('/api/revise-clip',{project,scope,direction});
     if(!job.job)throw new Error('任务未创建');
     let result;
     while(Date.now()-started<5*60*1000){
       await new Promise(resolve=>setTimeout(resolve,1500));
       const q=await revisionFetch('/api/job?id='+encodeURIComponent(job.job),{cache:'no-store'});
-      if(q.status==='error')throw new Error(q.error||'生成失败');
-      if(q.status==='done'){result=q.plan;break;}
+      if(q.status==='error'){finishAIJob(job.job);throw new Error(q.error||'生成失败');}
+      if(q.status==='done'){finishAIJob(job.job);result=q.plan;break;}
     }
     if(!result)throw new Error('等待超时');
-    if(signature!==revisionSignature())throw new Error('等待期间工程已变化，请基于当前版本重新生成');
     const command={type:'replace-clip',...scope,baseRevision:project.revision,candidate:result};
     const next=applyCommand(project,command);
-    revisionCandidate={signature,command,original:project,next,clip:structuredClone(clip),label};
+    if(signature!==revisionSignature()){
+      record(label,'AI 局部候选',JSON.stringify({...editor,project:next}));
+      $('revisionStatus').textContent='等待期间工程已变化，候选已存入版本记录，当前修改保持不变。';return;
+    }
+    revisionCandidate={signature,command,original:project,next,clip:structuredClone(clip),label,editor};
     $('revisionExplanation').textContent=label+'：'+result.explanation;
     $('revisionStatus').textContent='候选已就绪。试听 A / B 后，选择是否采用。';
   }catch(error){$('revisionStatus').textContent='原版已保留：'+String(error.message||error).slice(0,140);}
@@ -3263,7 +3391,8 @@ async function previewRevision(which){
   $('revisionStatus').textContent='正在准备本段试听…';
   try{
     const performance=projectPerformance(which==='A'?candidate.original:candidate.next);
-    const buffer=await renderAudio(null,null,{performance,from:candidate.clip.startTick/120,until:(candidate.clip.startTick+candidate.clip.durationTicks)/120});
+    const solo=$('revisionSolo').checked?candidate.next.tracks.find(t=>t.id===candidate.command.trackId).layer:null;
+    const buffer=await renderAudio(solo,null,{performance,from:candidate.clip.startTick/120,until:(candidate.clip.startTick+candidate.clip.durationTicks)/120});
     if(epoch!==comparisonEpoch||candidate!==revisionCandidate||candidate.signature!==revisionSignature())return;
     await A.ctx.resume();
     if(epoch!==comparisonEpoch||candidate!==revisionCandidate)return;
@@ -3295,7 +3424,12 @@ function saveStatus(status,error){
   label.textContent=status==='saved'?'已保存到此浏览器':status==='saving'?'正在保存…':status==='dirty'?'有修改，等待保存…':'未保存：'+String(error?.message||'请下载工程保留当前作品');
   $('retrySave').hidden=status!=='error';
 }
-const autosaver=createAutosaver(projectStore,saveStatus);
+function boundedHistory(){
+  const history={undo:HIST.undo.slice(-10),redo:HIST.redo.slice(-10)};
+  for(const key of ['undo','redo'])while(history[key].length&&history[key].reduce((n,s)=>n+s.length,0)>1500000)history[key].shift();
+  return history;
+}
+const autosaver=createAutosaver({save:(doc,token)=>projectStore.save(doc,token,boundedHistory())},saveStatus);
 function projectDocument(){
   return validateDocument(structuredClone({format:'arro-project',version:1,disclosure:AIGC_TEXT,project:state.project,editor:editorSnapshot()}));
 }
@@ -3326,7 +3460,7 @@ function runProjectCommand(command,gesture=null){
   state.project=next;state.arr.bpm=next.tempo;
   for(const t of next.tracks){state.vol[t.layer]=t.mixer.volume;state.muted[t.layer]=t.mixer.muted;}
   state.projectInput=projectSource();
-  const noteCommand=['update-note','delete-note','replace-clip'].includes(command.type);
+  const noteCommand=['update-note','delete-note','replace-clip','add-note','set-drum'].includes(command.type);
   const switchToSong=noteCommand&&state.mode!=='song';
   if(switchToSong){if(tp.playing)stop();state.mode='song';}
   syncProjectControls();render();if(switchToSong)setMode('song');
@@ -3365,7 +3499,7 @@ $('retrySave').onclick=async()=>{
 };
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushProjectSave();});
 window.addEventListener('beforeunload',e=>{
-  if(!persistenceReady||autosaver.unsettled||JSON.stringify(projectDocument())!==lastQueuedDocument){e.preventDefault();e.returnValue='';}
+  if(versionWriter||pendingVersions.size||!persistenceReady||autosaver.unsettled||JSON.stringify(projectDocument())!==lastQueuedDocument){e.preventDefault();e.returnValue='';}
 });
 
 /* ============ Undo, redo, and version history ============ */
@@ -3391,16 +3525,33 @@ function redo(){if(!HIST.redo.length)return;HIST.undo.push(snap());restore(HIST.
 function updUndo(){$('undoBtn').disabled=!HIST.undo.length;$('redoBtn').disabled=!HIST.redo.length;}
 // Save a local version after generation or layer replacement; starred versions are retained.
 const VKEY='shiyin.versions.v1';
-let versions=[]; try{versions=JSON.parse(localStorage.getItem(VKEY)||'[]');}catch(e){versions=[];}
-function saveVersions(){try{localStorage.setItem(VKEY,JSON.stringify(versions));}catch(e){toast('版本历史保存失败；请下载工程保留当前作品。');}}
-function record(what,by){
-  const a=state.arr, now=new Date();
+let versions=[];try{if(!localStorage.getItem('arro.versions.migrated'))versions=JSON.parse(localStorage.getItem(VKEY)||'[]');}catch{versions=[];}
+const pendingVersions=new Map();let versionWriter=null;
+function saveVersions(version){
+  pendingVersions.set(version.id,structuredClone(version));
+  if(versionWriter)return versionWriter;
+  versionWriter=(async()=>{
+    $('versionSaveState').textContent='正在保存版本记录…';$('retryVersions').hidden=true;
+    while(pendingVersions.size){
+      const [id,value]=pendingVersions.entries().next().value;
+      try{
+        const stored=await projectStore.putVersion(value);
+        if(pendingVersions.get(id)===value)pendingVersions.delete(id);
+        if(!pendingVersions.size){versions=stored;renderVersions();}
+      }catch(error){$('versionSaveState').textContent='版本记录未保存：'+error.message+'。请下载重要工程保留副本。';$('retryVersions').hidden=false;return;}
+    }
+    $('versionSaveState').textContent='版本记录已保存在此浏览器';
+  })().finally(()=>{versionWriter=null;});return versionWriter;
+}
+$('retryVersions').onclick=()=>{const first=pendingVersions.values().next().value;if(first)saveVersions(first);};
+function record(what,by,snapshot=snap()){
+  const a=JSON.parse(snapshot).arr, now=new Date();
   const v={id:now.getTime()+'-'+Math.random().toString(36).slice(2,6),time:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
-    what:String(what||'').slice(0,24),by:by||'',label:`${STYLES[a.styleId].name} · ${NOTE_NAMES[a.root]}${a.mode==='minor'?' 小调':' 大调'} · ${a.bpm}`,star:false,data:snap()};
+    what:String(what||'').slice(0,24),by:by||'',label:`${STYLES[a.styleId].name} · ${NOTE_NAMES[a.root]}${a.mode==='minor'?' 小调':' 大调'} · ${a.bpm}`,star:false,data:snapshot};
   versions.unshift(v);
   // Keep at most 30 unstarred versions.
   let plain=0; versions=versions.filter(x=>x.star||++plain<=30);
-  saveVersions(); renderVersions();
+  saveVersions(v); renderVersions();
 }
 function renderVersions(){
   const box=$('verList'); if(!box) return; box.innerHTML='';
@@ -3410,7 +3561,7 @@ function renderVersions(){
   list.forEach(v=>{
     const row=document.createElement('div'); row.className='ver';
     const st=document.createElement('button'); st.type='button'; st.className='star'; st.textContent=v.star?'★':'☆'; st.setAttribute('aria-label',v.star?'取消收藏':'收藏');
-    st.onclick=()=>{v.star=!v.star;saveVersions();renderVersions();};
+    st.onclick=()=>{v.star=!v.star;saveVersions(v);renderVersions();};
     const go=document.createElement('button'); go.type='button'; go.className='vgo';
     const t=document.createElement('span'); t.className='vt'; t.textContent=v.time;
     const b=document.createElement('b'); b.textContent=v.label;
@@ -3503,11 +3654,9 @@ async function generate(){
     state.busy=true; const btn=$('genBtn'); btn.disabled=true;
     let stage='draft';
     const t0=Date.now(), tick=()=>{const sec=Math.round((Date.now()-t0)/1000);btn.textContent=`制作中 ${sec}s`;$('genNote').hidden=false;$('genNote').textContent=stage==='review'?`制作人正在按要求修改编曲……`:`AI 制作人正在写整首歌的方案：结构、每段的和声、律动、旋律和处理手法……（默认先生成一版，完成后可以选择再打磨）`;};
-    tick(); const timer=setInterval(tick,1000);
+    tick(); const timer=setInterval(tick,1000), initialProject=revisionSignature();
     try{
-      const r=await fetch('/api/arrange',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mood:mood+ctlHints(),style:forced})});
-      let j=await r.json().catch(()=>({error:'HTTP '+r.status}));
-      if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+      let j=await submitAIJob('/api/arrange',{mood:mood+ctlHints(),style:forced});
       // Asynchronous generation: obtain a job ID, then poll every three seconds.
       if(j.job){
         const id=j.job, deadline=Date.now()+12*60*1000;
@@ -3517,13 +3666,23 @@ async function generate(){
           const q=await fetch('/api/job?id='+encodeURIComponent(id),{cache:'no-store'}).then(x=>x.json()).catch(()=>null);
           if(!q) continue;
           if(q.stage) stage=q.stage;
-          if(q.status==='done'){j=q;break;}
-          if(q.status==='error') throw new Error(q.error||'生成失败');
+          if(q.status==='done'){finishAIJob(id);j=q;break;}
+          if(q.status==='error'){finishAIJob(id);throw new Error(q.error||'生成失败');}
           if(q.error&&!q.status) throw new Error(q.error);
         }
       }
       if(!j.plan) throw new Error(j.error||'没有返回方案');
       if(forced) j.plan.style=forced;
+      if(initialProject!==revisionSignature()){
+        const current=snap();
+        try{
+          if(Array.isArray(j.plan.sections)){
+            const R=fromSongPlan(j.plan,null,{});state.arr=R.arr;state.arr.mood=mood;state.song=R.song;state.extra=R.extra;state.keepExtra=true;
+          }else{state.arr=fromPlan(j.plan,null,{});newForm();}
+          state.project=null;render(LAYERS);record(mood,'AI 生成候选');
+        }finally{restore(current);}
+        toast('生成结果已存入版本记录；等待期间的修改保持不变。');return;
+      }
       if(Array.isArray(j.plan.sections)){
         const R=fromSongPlan(j.plan,prev,locked);
         state.arr=R.arr; state.arr.mood=mood; state.song=R.song; state.extra=R.extra; state.keepExtra=true;
@@ -3538,8 +3697,7 @@ async function generate(){
       const mp=state.arr.melodyPick||{};
       toast(`AI 编曲完成，用时 ${(j.ms/1000).toFixed(1)} 秒。旋律：`+(mp.llm!=null?`大模型那版 ${mp.llm} 分，引擎那版 ${mp.eng} 分，用了${state.arr.melody.src}的；旋律轨上点"另一版"可以对比。`:`大模型没写旋律音符，用了引擎的（${mp.eng} 分）。`));
     }catch(err){
-      state.arr=compose(mood,pickStyle(),prev,locked); newForm(); render(LAYERS); record(mood);
-      toast('大模型这次没有返回可用结果（'+String(err.message||err).slice(0,60)+'），已用本地引擎生成。');
+      toast('生成未替换当前作品：'+String(err.message||err).slice(0,100)+'。可以重试，或主动选择本地方向。');
     }finally{clearInterval(timer);$('genNote').hidden=true;state.busy=false;btn.disabled=false;btn.textContent='生成';renderConcept();}
     return;
   }
@@ -3555,16 +3713,15 @@ async function polish(direction){
   const tick=()=>{$('genNote').hidden=false;$('genNote').textContent=`制作人正在按你的要求打磨，已等待 ${Math.round((Date.now()-t0)/1000)} 秒；原版本已保留。`;};
   tick(); const timer=setInterval(tick,1000);
   try{
-    const r=await fetch('/api/refine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mood,plan:source,direction})});
-    const j=await r.json(); if(!r.ok) throw new Error(j.error||'打磨请求失败');
+    const j=await submitAIJob('/api/refine',{mood,plan:source,direction});
     let result;
     for(;;){
       if(Date.now()-t0>12*60*1000) throw new Error('等待超时，原版本已保留');
       await new Promise(resolve=>setTimeout(resolve,3000));
       const q=await fetch('/api/job?id='+encodeURIComponent(j.job),{cache:'no-store'}).then(x=>x.json()).catch(()=>null);
       if(!q) continue;
-      if(q.status==='done'){result=q;break;}
-      if(q.status==='error'||q.error) throw new Error(q.error||'打磨失败');
+      if(q.status==='done'){finishAIJob(j.job);result=q;break;}
+      if(q.status==='error'||q.error){finishAIJob(j.job);throw new Error(q.error||'打磨失败');}
     }
     if(result.plan?.validation?.review!=='complete') throw new Error('修改未通过检查，保留当前版本');
     const R=fromSongPlan(result.plan,null,{});
@@ -3646,10 +3803,15 @@ const melWord=v=>W(v,[[.3,'好唱'],[.62,'适中'],[.8,'花哨'],[1.01,'很花�
 const harmWord=v=>W(v,[[.3,'只用三和弦'],[.55,'跟风格走'],[.72,'加低音走线'],[.85,'七和弦·无根音'],[1.01,'九和弦']]);
 const swingWord=v=>W(v,[[.08,'直'],[.35,'轻摇摆'],[.65,'摇摆'],[1.01,'重 Shuffle']]);
 const grooveOf=a=>{const st=STYLES[a.styleId];return a.groove??(st.swing8?st.swing8:Math.min(1,(a.swing||0)/.5));};
+function generationDirection(field,value){
+  if(state.arr.executionVersion!==2)return false;
+  commit();state.ctl[field]=value;syncCtl();scheduleProjectSave();toast('已设置下次生成的方向；当前音符保持不变。');return true;
+}
 function syncCtl(){
   const a=state.arr, c=state.ctl; if(!a) return;
+  $('directionHelp').textContent=a.executionVersion===2?'明暗、能量、旋律、和声与调的选择用于下一次生成。修改当前音乐请用下方的局部 AI 修改或音符编辑；律动和呼吸感即时影响演奏。':'拖动即可调整当前的本地编曲。';
   $('keyPick').value=String(c.key); $('keyV').textContent=(c.key==='auto'?'自动 · ':'固定 · ')+NOTE_NAMES[a.root]+(a.mode==='minor'?'m':'');
-  const b=brightOf(a); $('bright').value=b; $('brightV').textContent=brightWord(b);
+  const b=a.executionVersion===2?(c.bright??brightOf(a)):brightOf(a); $('bright').value=b; $('brightV').textContent=brightWord(b);
   $('energy').value=c.energy; $('energyV').textContent=energyWord(c.energy);
   $('mel').value=c.mel; $('melV').textContent=melWord(c.mel);
   $('harm').value=c.harm; $('harmV').textContent=harmWord(c.harm);
@@ -3658,19 +3820,19 @@ function syncCtl(){
 {
   const kp=$('keyPick'); const o=document.createElement('option'); o.value='auto'; o.textContent='自动（跟随生成）'; kp.appendChild(o);
   NOTE_NAMES.forEach((n,i)=>{const x=document.createElement('option');x.value=String(i);x.textContent=n;kp.appendChild(x);});
-  kp.onchange=()=>{const v=kp.value; state.ctl.key=v==='auto'?'auto':+v; if(v!=='auto'){commit();state.arr.root=+v;render([]);record('换到 '+NOTE_NAMES[+v]);} else syncCtl();};
+  kp.onchange=()=>{const v=kp.value;if(generationDirection('key',v==='auto'?'auto':+v))return; state.ctl.key=v==='auto'?'auto':+v; if(v!=='auto'){commit();state.arr.root=+v;render([]);record('换到 '+NOTE_NAMES[+v]);} else syncCtl();};
   const live=(id,f)=>{$(id).oninput=e=>f(Number(e.target.value),false);$(id).onchange=e=>f(Number(e.target.value),true);};
-  live('bright',(v,go)=>{$('brightV').textContent=brightWord(v); if(!go) return;
+  live('bright',(v,go)=>{$('brightV').textContent=brightWord(v); if(!go||generationDirection('bright',v)) return;
     commit(); const a=state.arr; state.ctl.bright=v; a.bright=v; const nm=modeOfBright(v);
     if(nm!==a.mode){a.mode=nm;a.explain=explainFor(a);render(['chords']);} else render([]);
     record('明暗 '+brightWord(v));});
-  live('energy',(v,go)=>{$('energyV').textContent=energyWord(v); if(!go) return; commit(); state.ctl.energy=v; render([]); record('能量 '+energyWord(v));});
-  live('mel',(v,go)=>{$('melV').textContent=melWord(v); if(!go) return;
+  live('energy',(v,go)=>{$('energyV').textContent=energyWord(v); if(!go||generationDirection('energy',v)) return; commit(); state.ctl.energy=v; render([]); record('能量 '+energyWord(v));});
+  live('mel',(v,go)=>{$('melV').textContent=melWord(v); if(!go||generationDirection('mel',v)) return;
     state.ctl.mel=v; if(state.locked.melody){toast('旋律锁定了：复杂度会在下次生成时生效。');return;}
     commit(); const a=state.arr; setMelody(a,bestMelody(STYLES[a.styleId],a)); render(['melody']); record('旋律 '+melWord(v));});
-  live('harm',(v,go)=>{$('harmV').textContent=harmWord(v); if(!go) return; commit(); state.ctl.harm=v; state.arr.explain=explainFor(state.arr); render(['chords']); record('和声 '+harmWord(v));});
+  live('harm',(v,go)=>{$('harmV').textContent=harmWord(v); if(!go||generationDirection('harm',v)) return; commit(); state.ctl.harm=v; state.arr.explain=explainFor(state.arr); render(['chords']); record('和声 '+harmWord(v));});
   live('swing',(v,go)=>{$('swingV').textContent=swingWord(v); if(!go) return; commit(); state.ctl.swing=v; state.arr.groove=v; syncCtl(); record('律动 '+swingWord(v));});
-  $('ctlReset').onclick=()=>{commit(); state.ctl={key:'auto',bright:null,energy:.5,mel:.45,harm:.6,swing:null}; const a=state.arr; delete a.bright; delete a.groove;
+  $('ctlReset').onclick=()=>{commit(); state.ctl={key:'auto',bright:null,energy:.5,mel:.45,harm:.6,swing:null};if(state.arr.executionVersion===2){syncCtl();scheduleProjectSave();toast('已恢复下次生成的默认方向。');return;} const a=state.arr; delete a.bright; delete a.groove;
     state.feel=.7; $('feel').value=.7; $('feelV').textContent='70'; render(['chords']); toast('已恢复默认：跟随风格。');};
 }
 $('dirBtn').onclick=directions;
@@ -3706,10 +3868,27 @@ document.querySelector('.app').inert=true;
 try {
   const saved=await projectStore.load();
   if(saved){const doc=parseDocument(JSON.stringify(saved.document));restore(JSON.stringify({...doc.editor,project:doc.project}));lastQueuedDocument=JSON.stringify(projectDocument());}
+  if(saved?.history){
+    try{
+      for(const key of ['undo','redo']){
+        if(!Array.isArray(saved.history[key])||saved.history[key].length>10)throw new Error('Invalid history');
+        for(const text of saved.history[key]){const value=JSON.parse(text);parseDocument(JSON.stringify({format:'arro-project',version:1,project:value.project,editor:value}));}
+      }
+      HIST.undo=saved.history.undo;HIST.redo=saved.history.redo;
+    }catch{HIST.undo=[];HIST.redo=[];}
+  }
   autosaver.initialize(saved?.token??null); persistenceReady=true;if(saved)saveStatus('saved');
 } catch(error) { restore(startupSnapshot);saveStatus('error',new Error('本机工程读取失败：'+error.message)); }
+try{
+  const legacy=versions;versions=await projectStore.loadVersions();
+  if(legacy.length&&!localStorage.getItem('arro.versions.migrated')){
+    for(const version of legacy){if(version&&typeof version.id==='string'&&typeof version.data==='string'&&!versions.some(v=>v.id===version.id))versions=await projectStore.putVersion(version);}
+    localStorage.setItem('arro.versions.migrated','1');
+  }
+}catch(error){$('versionSaveState').textContent='版本记录读取失败；原有记录仍保留在浏览器中。';}
+await refreshRecovery().catch(()=>{$('recoveryStatus').textContent='暂时无法读取任务恢复信息。';});
 render(); setStatus(); detectBackend(); updUndo(); renderVersions();
 document.querySelector('.app').inert=false;
-window.__shiyin={revisionCandidate:()=>revisionCandidate,comparisonSource:()=>comparisonSource,projectDocument,importProjectText,runProjectCommand,flushProjectSave,projectStore,captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
+window.__shiyin={flushVersions:()=>versionWriter||Promise.resolve(),playbackSource:source,revisionCandidate:()=>revisionCandidate,comparisonSource:()=>comparisonSource,projectDocument,importProjectText,runProjectCommand,flushProjectSave,projectStore,captureProject,projectPerformance,state,parseChordTok,chordInfo,derive,deriveSong,buildExport,fromPlan,fromSongPlan,renderAudio,sunoGuide,HIST,versions:()=>versions,render:(c)=>render(c),midiFile,wavBytes,withAigcTone,LAYERS};
 })();
 </script>

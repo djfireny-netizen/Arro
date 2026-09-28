@@ -87,3 +87,25 @@ Evaluation still respects the site-wide limit and concurrency limit. Nginx also 
 Configure spending limits with the model provider where available. A two-pass arrangement can consume several thousand to more than ten thousand tokens; actual usage depends on the model output and retries.
 
 The application page is roughly 250 KB, with approximately 1–2 MB of samples loaded on the first use of a style. For larger audiences, sample hosting on object storage and a CDN can reduce server bandwidth requirements.
+
+## ARRO 1.1 job persistence and recovery
+
+The service now needs a private writable job directory. By default it uses `.arro-data/` beside `server.mjs`; `ARRO_JOB_DIR` can point to an alternative directory owned by the service user. The directory is ignored by Git, uses mode 0700, and contains an atomically replaced mode-0600 journal. It contains generated results and usage metadata, not model credentials or complete request bodies. It is not served by the HTTP router.
+
+Keep this directory through deployments and restarts. Request identity, browser-session ownership, completion state, and daily usage accounting survive restart. Completed results and retry identities are retained for 24 hours; the journal is bounded to 256 records. The server rejects new work when full rather than dropping a current retry record. An interrupted upstream call is not automatically replayed. Clients must preserve both invitation and `arro_session` cookies; the bundled evaluation runner does so.
+
+Model connections use normal TLS certificate verification. Configure a trusted CA through the Node.js trust configuration if required by your environment.
+
+Before deployment, run the unit/HTTP tests and browser regression suite. `ARRO_TEST_BASE=http://127.0.0.1:5181` can direct the browser suite at an isolated mock preview service instead of starting a local server. Use only a non-production mock preview with the synthetic invitation `TEST-CODE-1` and its own job directory.
+
+Production retains invitation-only access. Confirm `/api/health` reports `version: "1.1.0"`, verify the login page and static brand assets over HTTPS, and check that protected project modules still require login. Keep the preceding commit and deployment record for rollback. A rollback must preserve `.env`, `.arro-data`, browser IndexedDB, and exported project files.
+
+If older application code cannot open an exported 1.1 project, run the tagged 1.1 recovery copy locally:
+
+```bash
+git clone --branch v1.1.0 https://github.com/djfireny-netizen/Arro.git Arro-recovery
+cd Arro-recovery
+HOST=127.0.0.1 PROVIDER=mock node server.mjs
+```
+
+Open localhost:5178 and import the `.arro.json` file to play or export it. This path requires no model credential and does not regenerate the saved music.

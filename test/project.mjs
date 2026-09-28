@@ -113,3 +113,16 @@ assert.equal(applyCommand(current,{...command,candidate:{...candidate,notes:[]}}
 for(const change of [{baseRevision:999},{projectId:'other'},{clipId:project.tracks[3].clips[1].id},{notes:[{pitch:70,startTick:0,durationTicks:7800,velocity:.8}]},{notes:[{pitch:128,startTick:0,durationTicks:120,velocity:.8}]},{notes:[{pitch:70,startTick:1,durationTicks:120,velocity:.8}]},{notes:[{pitch:70,startTick:0,durationTicks:120,velocity:0}]},{extra:'unscoped'},{notes:Array(513).fill(candidate.notes[0])}])assert.throws(()=>applyCommand(current,{...command,candidate:{...candidate,...change}}));
 assert.throws(()=>revisionContext(current,{trackId:'track:drums',clipId:current.tracks[0].clips[0].id}));
 console.log('Scoped AI candidates preserve current edits and outside clips; stale identities, scope, and malformed notes are rejected');
+
+const added=applyCommand(project,{type:'add-note',baseRevision:project.revision,...scope,eventId:'new-user-note',note:{pitch:64,startTick:240,durationTicks:360,velocity:.71}});
+assert.equal(added.tracks[3].clips[0].events.at(-1).pitch,64);
+assert.deepEqual(added.tracks[0],project.tracks[0]);
+assert.throws(()=>applyCommand(project,{type:'add-note',baseRevision:project.revision,...scope,eventId:'bad',note:{pitch:128,startTick:0,durationTicks:120,velocity:1}}));
+const drumScope={trackId:project.tracks[0].id,clipId:project.tracks[0].clips[0].id};
+const drum=applyCommand(project,{type:'set-drum',baseRevision:project.revision,...drumScope,lane:'k',startTick:0,velocity:.61});
+assert.deepEqual(projectPerformance(drum).ev.drums[0],[['k',.61]]);
+assert.deepEqual(drum.tracks[3],project.tracks[3]);
+const silent=applyCommand(drum,{type:'set-drum',baseRevision:drum.revision,...drumScope,lane:'k',startTick:0,velocity:0});
+assert.deepEqual(projectPerformance(silent).ev.drums[0],[]);
+for(const patch of [{lane:'bad'},{startTick:1},{startTick:999999},{velocity:-1},{velocity:NaN}])assert.throws(()=>applyCommand(project,{type:'set-drum',baseRevision:project.revision,...drumScope,lane:'k',startTick:0,velocity:.8,...patch}));
+console.log('Note creation and drum add/update/delete preserve other clips and validate scope, grid, pitch, and velocity');
