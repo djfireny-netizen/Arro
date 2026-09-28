@@ -449,7 +449,7 @@ footer{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-betw
       <ul class="tips" id="tips"></ul>
     </div>
     <div class="card">
-      <h2>大模型接入</h2>
+      <h2>编曲数据</h2>
       <p class="status" id="status"></p>
       <pre id="json" aria-label="编曲数据"></pre>
       <div class="row"><button class="btn" id="copyJson" type="button">复制编曲数据</button></div>
@@ -3080,7 +3080,7 @@ function renderVersions(){
     const go=document.createElement('button'); go.type='button'; go.className='vgo';
     const t=document.createElement('span'); t.className='vt'; t.textContent=v.time;
     const b=document.createElement('b'); b.textContent=v.label;
-    const w=document.createElement('span'); w.className='vw'; w.textContent=(v.by?v.by+' · ':'')+v.what;
+    const w=document.createElement('span'); w.className='vw'; w.textContent=(v.by?(/claude|opus|sonnet|qwen|千问|deepseek|豆包|doubao|gemini|gpt|演示/i.test(v.by)?'AI 编曲':v.by)+' · ':'')+v.what;
     go.append(t,b,w); go.onclick=()=>{commit();restore(v.data);toast(`已回到 ${v.time} 的版本，按 ⌘Z / Ctrl+Z 可以回来。`);};
     row.append(st,go); box.appendChild(row);
   });
@@ -3168,7 +3168,7 @@ async function generate(){
   if(state.backend&&state.backend.ok){
     state.busy=true; const btn=$('genBtn'); btn.disabled=true;
     let stage='draft';
-    const t0=Date.now(), tick=()=>{const sec=Math.round((Date.now()-t0)/1000);btn.textContent=`制作中 ${sec}s`;$('genNote').hidden=false;$('genNote').textContent=stage==='review'?`制作人正在按要求修改编曲……`:`${state.backend.label} 正在写整首歌的方案：结构、每段的和声、律动、旋律和处理手法……（默认先生成一版，完成后可以选择再打磨）`;};
+    const t0=Date.now(), tick=()=>{const sec=Math.round((Date.now()-t0)/1000);btn.textContent=`制作中 ${sec}s`;$('genNote').hidden=false;$('genNote').textContent=stage==='review'?`制作人正在按要求修改编曲……`:`AI 制作人正在写整首歌的方案：结构、每段的和声、律动、旋律和处理手法……（默认先生成一版，完成后可以选择再打磨）`;};
     tick(); const timer=setInterval(tick,1000);
     try{
       const r=await fetch('/api/arrange',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mood:mood+ctlHints(),style:forced})});
@@ -3194,15 +3194,15 @@ async function generate(){
         const R=fromSongPlan(j.plan,prev,locked);
         state.arr=R.arr; state.arr.mood=mood; state.song=R.song; state.extra=R.extra; state.keepExtra=true;
         state.sel=Math.max(0,state.song.findIndex(x=>x.type==='chorus'));
-        render(LAYERS); if(state.mode!=='song') setMode('song'); record(mood,state.backend.label);
+        render(LAYERS); if(state.mode!=='song') setMode('song'); record(mood,'AI 编曲');
         const S=state.S; toast(`《${state.arr.title||'未命名'}》写好了：${state.song.length} 段、${S.bars} 小节、约 ${fmtTime(S.bars*240/state.arr.bpm)}，用时 ${Math.round(j.ms/1000)} 秒。下面“制作人的构思”里有这首歌的想法；试听后可以选择再打磨一次。`);
         return;
       }
       state.arr=fromPlan(j.plan,prev,locked); state.arr.mood=mood;
       newForm();
-      render(LAYERS); record(mood,state.backend.label);
+      render(LAYERS); record(mood,'AI 编曲');
       const mp=state.arr.melodyPick||{};
-      toast(`${state.backend.label}写好了，用时 ${(j.ms/1000).toFixed(1)} 秒。旋律：`+(mp.llm!=null?`大模型那版 ${mp.llm} 分，引擎那版 ${mp.eng} 分，用了${state.arr.melody.src}的；旋律轨上点"另一版"可以对比。`:`大模型没写旋律音符，用了引擎的（${mp.eng} 分）。`));
+      toast(`AI 编曲完成，用时 ${(j.ms/1000).toFixed(1)} 秒。旋律：`+(mp.llm!=null?`大模型那版 ${mp.llm} 分，引擎那版 ${mp.eng} 分，用了${state.arr.melody.src}的；旋律轨上点"另一版"可以对比。`:`大模型没写旋律音符，用了引擎的（${mp.eng} 分）。`));
     }catch(err){
       state.arr=compose(mood,pickStyle(),prev,locked); newForm(); render(LAYERS); record(mood);
       toast('大模型这次没有返回可用结果（'+String(err.message||err).slice(0,60)+'），已用本地引擎生成。');
@@ -3249,14 +3249,14 @@ function setStatus(){
   s.textContent='';
   const add=(txt,code)=>{if(code){const c=document.createElement('code');c.textContent=txt;s.appendChild(c);}else s.appendChild(document.createTextNode(txt));};
   if(b&&b.ok){
-    chip.dataset.state='live'; $('engineName').textContent=b.label+' · '+b.model;
-    add('已连接 '+b.label+'（'); add(b.model,true); add('）。点"生成"时由大模型写整段编曲，下面就是它需要输出的数据格式；单层的"换一个"用本地引擎，不花调用费。');
+    chip.dataset.state='live'; $('engineName').textContent='AI 编曲已连接';
+    add('AI 编曲服务已连接。点"生成"创作整首编曲；单层的"换一个"使用本地引擎。下面可以查看和复制编曲数据。');
   } else if(b){
-    chip.dataset.state='nokey'; $('engineName').textContent='本地服务已连接 · 缺 API Key';
-    add('本地服务已经跑起来了，但还没有填 API Key。在项目文件夹的 '); add('.env',true); add(' 里填上 '); add(b.keyEnv||'DASHSCOPE_API_KEY',true); add('，重启服务就会切换到'+(b.label||'千问')+'。');
+    chip.dataset.state='nokey'; $('engineName').textContent='AI 编曲暂不可用';
+    add('AI 编曲服务尚未准备好，当前可以使用本地编曲功能。');
   } else {
     chip.dataset.state='local'; $('engineName').textContent='本地编曲引擎';
-    add('现在用的是本地规则引擎，秒出、免费，不用联网。要让千问来写，在电脑上运行项目里的 '); add('node server.mjs',true); add('，填好 API Key 后打开 '); add('localhost:5178',true); add('。大模型只需要输出下面这份数据，声音仍然由浏览器合成。');
+    add('当前使用本地编曲引擎，无需联网。声音由浏览器合成，下面可以查看和复制编曲数据。');
   }
 }
 async function detectBackend(){
